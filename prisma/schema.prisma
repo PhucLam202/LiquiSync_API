@@ -1,0 +1,153 @@
+// File: prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  email             String      @unique
+  passwordHash      String?
+  fullName          String?
+  isEmailVerified   Boolean     @default(false)
+  subscriptionId    String      @db.ObjectId
+  roleId            String      @db.ObjectId
+  isActive          Boolean     @default(false)
+  status            UserStatus  @default(PENDING_VERIFICATION)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  lastLoginAt       DateTime?
+  refreshToken      String?
+  
+  role             Role         @relation(fields: [roleId], references: [id])
+  subscription     Subscription @relation(fields: [subscriptionId], references: [id])
+  apiKeys          ApiKey[]
+  usageLogs        UsageLog[]
+  
+  @@map("users")
+}
+
+model Subscription {
+  id                      String            @id @default(auto()) @map("_id") @db.ObjectId
+  planType                PlanType          @default(FREE)
+  status                  SubscriptionStatus @default(ACTIVE)
+  monthlyLimit            Int
+  currentUsage            Int               @default(0)
+  resetDate               DateTime
+  paymentProvider         String?
+  externalSubscriptionId  String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  
+  users                   User[]
+  
+  @@map("subscriptions")
+}
+
+model ApiKey {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String    @db.ObjectId
+  keyHash       String    @unique
+  keyPrefix     String    // First 8 chars: "ak_live_12345678"
+  name          String
+  permissions   String[]  // Override permissions for this key
+  isActive      Boolean   @default(true)
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  requestCount  Int       @default(0)
+  allowedIPs    String[]  // IP whitelist
+  refererUrls   String[]  // Domain whitelist
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  user          User      @relation(fields: [userId], references: [id])
+  usageLogs     UsageLog[]
+  
+  @@map("api_keys")
+}
+
+model Role {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique // USER, PREMIUM_USER, ADMIN
+  description String
+  isActive    Boolean  @default(true)
+  priority    Int      // Higher number = more privileges
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users           User[]
+  rolePermissions RolePermission[]
+  
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique // READ, WRITE, DELETE, CREATE, ADMIN
+  description String
+  category    String   // data, admin, analytics, etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+  
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  roleId       String @db.ObjectId
+  permissionId String @db.ObjectId
+  
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UsageLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  apiKeyId     String   @db.ObjectId
+  endpoint     String
+  method       String
+  responseTime Int
+  statusCode   Int
+  timestamp    DateTime @default(now())
+  ipAddress    String
+  userAgent    String
+  
+  user         User     @relation(fields: [userId], references: [id])
+  apiKey       ApiKey   @relation(fields: [apiKeyId], references: [id])
+  
+  @@map("usage_logs")
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  EMAIL_VERIFIED
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+enum PlanType {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  EXPIRED
+}

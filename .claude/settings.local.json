@@ -1,16 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run dev:*)",
+      "Bash(pnpm run dev:*)",
       "Bash(curl:*)",
       "Bash(pkill:*)",
-      "Bash(npm install:*)",
-      "Bash(npm run build:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm run build:*)",
       "Bash(ls:*)",
-      "Bash(npm start)",
+      "Bash(pnpm start)",
       "Bash(rm:*)",
-      "Bash(pnpm run:*)"
-    ],
+      "Bash(pnpm run:*)",
+      "mcp__sequentialthinking__sequentialthinking"
+    ],w
     "deny": []
   }
 }

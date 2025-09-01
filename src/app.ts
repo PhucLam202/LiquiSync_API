@@ -52,23 +52,25 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration - Railway deployment compatible
+// CORS configuration - Railway deployment compatible 
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? [
         /\.railway\.app$/,
         /\.up\.railway\.app$/,
         /^https:\/\/.*\.railway\.app$/,
-        'https://api.liquidsync.dev'
+        'https://api.liquidsync.dev',
+        'https://app.liquidsync.dev'
       ]
     : [
         'http://localhost:3000', 
         'http://127.0.0.1:3000',
-        'http://localhost:8080'
+        'http://localhost:8080',
+        'http://localhost:5173'
       ],
-  credentials: false,
+  credentials: true, // Enable credentials for cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cookie'],
   optionsSuccessStatus: 200
 }));
 
@@ -87,9 +89,19 @@ if (config.nodeEnv === 'development') {
 app.get("/openapi.json", (_, res) => {
   try {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=300");
+    
+    // Cache control: In development, disable caching to prevent stale server URLs
+    // In production, allow 5-minute caching for performance
+    const cacheControl = process.env.NODE_ENV === 'production' 
+      ? "public, max-age=300" 
+      : "no-cache, no-store, must-revalidate, max-age=0";
+    
+    res.setHeader("Cache-Control", cacheControl);
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("X-Content-Type-Options", "nosniff");
+    
+    // Add timestamp header to help with debugging and cache busting
+    res.setHeader("X-OpenAPI-Generated", new Date().toISOString());
     
     // Clean JSON serialization
     res.status(200).json(openapiSpecification);
