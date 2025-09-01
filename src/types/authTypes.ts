@@ -91,9 +91,10 @@ export interface LoginResult {
   refreshToken: string;
   user: {
     id: string;
-    email: string;
+    email: string | null;
     fullName: string | null;
-
+    walletAddress?: string | null;
+    authType?: string;
   };
 }
 

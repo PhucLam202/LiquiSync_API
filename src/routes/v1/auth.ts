@@ -12,6 +12,8 @@ router.post('/complete-profile', AuthController.completeProfile);
 
 // Authentication
 router.post('/login', AuthController.login);
+router.post('/web3-login', AuthController.web3Login);
+router.post('/link-email-to-web3', AuthController.linkEmailToWeb3User);
 router.post('/logout', AuthController.logout);
 router.post('/refresh-token', AuthController.refreshToken);
 

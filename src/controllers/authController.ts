@@ -344,6 +344,117 @@ export class AuthController {
   /**
    * Get current user profile
    */
+
+  /**
+   * Web3 Login - Login or register with wallet address
+   */
+  static async web3Login(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { walletAddress } = req.body;
+
+      // Validate required fields
+      if (!walletAddress) {
+        throw AppError.badRequest('Wallet address is required');
+      }
+
+      // Validate wallet address format (basic Ethereum address validation)
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        throw AppError.badRequest('Invalid wallet address format');
+      }
+
+      // Sanitize wallet address
+      const sanitizedWalletAddress = ValidationUtils.sanitizeInput(walletAddress.toLowerCase());
+
+      // Login or register user with Web3
+      const result = await AuthService.web3Login(sanitizedWalletAddress);
+
+      // Set refresh token as httpOnly cookie
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 1 * 24 * 60 * 60 * 1000 // 1 days
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Web3 login successful',
+        data: {
+          accessToken: result.accessToken,
+          user: result.user
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Link email to existing Web3 user
+   */
+  static async linkEmailToWeb3User(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { walletAddress, email, password, fullName } = req.body;
+
+      // Validate required fields
+      const requiredFields = ['walletAddress', 'email', 'password', 'fullName'];
+      const missingFields = ValidationMiddleware.validateRequired(req.body, requiredFields);
+      if (missingFields.length > 0) {
+        throw AppError.badRequest(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+
+      // Validate wallet address format (basic Ethereum address validation)
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        throw AppError.badRequest('Invalid wallet address format');
+      }
+
+      // Validate email format
+      if (!ValidationUtils.isValidEmail(email)) {
+        throw AppError.badRequest('Invalid email format');
+      }
+
+      // Validate password strength
+      const passwordValidation = ValidationUtils.validatePassword(password);
+      if (!passwordValidation.isValid) {
+        throw AppError.badRequest(passwordValidation.errors.join(', '));
+      }
+
+      // Sanitize inputs
+      const sanitizedData = {
+        walletAddress: ValidationUtils.sanitizeInput(walletAddress.toLowerCase()),
+        email: ValidationUtils.sanitizeInput(email.toLowerCase()),
+        password: password, // Don't sanitize password
+        fullName: ValidationUtils.sanitizeInput(fullName)
+      };
+
+      // Link email to Web3 user
+      const result = await AuthService.linkEmailToWeb3User(
+        sanitizedData.walletAddress,
+        sanitizedData.email,
+        sanitizedData.password,
+        sanitizedData.fullName
+      );
+
+      // Set refresh token as httpOnly cookie
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 1 * 24 * 60 * 60 * 1000 // 1 days
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Email linked to Web3 account successfully',
+        data: {
+          accessToken: result.accessToken,
+          user: result.user
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
   static async getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       // This would be called after authentication middleware

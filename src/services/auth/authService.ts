@@ -295,6 +295,8 @@ export class AuthService {
       {
         id: user.id,
         email: user.email,
+        walletAddress: user.walletAddress,
+        authType: user.authType,
         role: user.role.name,
       },
       secret,
@@ -325,26 +327,32 @@ export class AuthService {
   /**
    * Verify refresh token and return new access token
    */
-  static async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+  static async refreshAccessToken(
+    refreshToken: string
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     try {
       // Verify refresh token signature
-      const secret = (process.env.JWT_REFRESH_SECRET || SECURITY_CONFIG.JWT.SECRET) as string;
+      const secret = (process.env.JWT_REFRESH_SECRET ||
+        SECURITY_CONFIG.JWT.SECRET) as string;
       const decoded = jwt.verify(refreshToken, secret) as { userId: string };
-      
+
       // Find user and verify stored refresh token
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        include: { role: true, subscription: true }
+        include: { role: true, subscription: true },
       });
 
       if (!user || !user.refreshToken) {
-        throw AppError.unauthorized('Invalid refresh token');
+        throw AppError.unauthorized("Invalid refresh token");
       }
 
       // Verify against stored hashed refresh token
-      const isValidRefreshToken = await bcrypt.compare(refreshToken, user.refreshToken);
+      const isValidRefreshToken = await bcrypt.compare(
+        refreshToken,
+        user.refreshToken
+      );
       if (!isValidRefreshToken) {
-        throw AppError.unauthorized('Invalid refresh token');
+        throw AppError.unauthorized("Invalid refresh token");
       }
 
       // Check user status
@@ -356,14 +364,13 @@ export class AuthService {
 
       return {
         accessToken: newAccessToken,
-        refreshToken: newRefreshToken
+        refreshToken: newRefreshToken,
       };
-
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
-        throw AppError.unauthorized('Refresh token expired');
+        throw AppError.unauthorized("Refresh token expired");
       } else if (error instanceof jwt.JsonWebTokenError) {
-        throw AppError.unauthorized('Invalid refresh token');
+        throw AppError.unauthorized("Invalid refresh token");
       }
       throw error;
     }
@@ -375,7 +382,7 @@ export class AuthService {
   static async revokeRefreshToken(userId: string): Promise<void> {
     await prisma.user.update({
       where: { id: userId },
-      data: { refreshToken: null }
+      data: { refreshToken: null },
     });
   }
 
@@ -428,6 +435,179 @@ export class AuthService {
       throw AppError.badRequest(
         "Password must contain at least one special character"
       );
+    }
+  }
+
+  /**
+   * Web3 Login - Login or register user with wallet address
+   */
+  static async web3Login(walletAddress: string): Promise<LoginResult> {
+    try {
+      // Normalize wallet address (lowercase)
+      const normalizedAddress = walletAddress.toLowerCase();
+
+      // Find existing user by wallet address
+      let user = await prisma.user.findFirst({
+        where: { walletAddress: normalizedAddress },
+        include: { role: true, subscription: true },
+      });
+
+      // If user doesn't exist, create new user
+      if (!user) {
+        user = await this.createWeb3User(normalizedAddress);
+        if (!user) {
+          throw AppError.internalError("Failed to create Web3 user");
+        }
+      }
+
+      // Validate user status
+      this.validateUserStatus(user.status);
+
+      // Generate tokens
+      const accessToken = this.generateAccessToken(user);
+      const refreshToken = await this.generateRefreshToken(user.id);
+
+      // Update last login
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+          lastLoginAt: new Date(),
+          authType: "WEB3" as any
+        },
+      });
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          walletAddress: user.walletAddress,
+          authType: user.authType,
+        },
+      };
+    } catch (error) {
+      console.error("Error in web3Login:", error);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.internalError("Internal server error");
+    }
+  }
+
+  /**
+   * Create new user for Web3 authentication
+   */
+  private static async createWeb3User(walletAddress: string): Promise<any> {
+    return await prisma.$transaction(async (tx) => {
+      // Create default subscription
+      const subscription = await tx.subscription.create({
+        data: {
+          planType: "FREE",
+          monthlyLimit: 20,
+          resetDate: this.getNextResetDate(),
+        },
+      });
+
+      // Get default user role
+      const userRole = await tx.role.findUnique({
+        where: { name: "USER" },
+      });
+
+      if (!userRole) {
+        throw AppError.internalError("Default user role not found");
+      }
+
+      // Create user with Web3 auth type
+      const newUser = await tx.user.create({
+        data: {
+          walletAddress,
+          authType: "WEB3",
+          subscriptionId: subscription.id,
+          roleId: userRole.id,
+          status: USER_STATUS_CONSTANTS.ACTIVE,
+          isActive: true,
+          isEmailVerified: false, // Web3 users don't need email verification initially
+        },
+        include: { role: true, subscription: true },
+      });
+
+      return newUser;
+    });
+  }
+
+  /**
+   * Link email to existing Web3 user
+   */
+  static async linkEmailToWeb3User(
+    walletAddress: string,
+    email: string,
+    password: string,
+    fullName: string
+  ): Promise<LoginResult> {
+    try {
+      const normalizedAddress = walletAddress.toLowerCase();
+      const normalizedEmail = email.toLowerCase();
+
+      // Check if email is already used by another user
+      const existingEmailUser = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (existingEmailUser && existingEmailUser.walletAddress !== normalizedAddress) {
+        throw AppError.badRequest("Email is already associated with another account");
+      }
+
+      // Find Web3 user
+      const user = await prisma.user.findFirst({
+        where: { walletAddress: normalizedAddress },
+        include: { role: true, subscription: true },
+      });
+
+      if (!user) {
+        throw AppError.badRequest("Web3 user not found");
+      }
+
+      // Validate registration data
+      await this.validateRegistrationData({ email, password, fullName });
+
+      // Hash password
+      const passwordHash = await PasswordUtils.hashPassword(password);
+
+      // Update user with email and password
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          email: normalizedEmail,
+          passwordHash,
+          fullName,
+          authType: "WEB3" as any, // Keep as Web3 but now has email too
+        },
+        include: { role: true, subscription: true },
+      });
+
+      // Generate tokens
+      const accessToken = this.generateAccessToken(updatedUser);
+      const refreshToken = await this.generateRefreshToken(updatedUser.id);
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          fullName: updatedUser.fullName,
+          walletAddress: updatedUser.walletAddress,
+          authType: updatedUser.authType,
+        },
+      };
+    } catch (error) {
+      console.error("Error linking email to Web3 user:", error);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.internalError("Internal server error");
     }
   }
 }
