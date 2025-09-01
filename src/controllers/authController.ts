@@ -455,29 +455,5 @@ export class AuthController {
       next(error);
     }
   }
-  static async getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      // This would be called after authentication middleware
-      const user = (req as any).user;
 
-      if (!user) {
-        throw AppError.unauthorized('User not authenticated');
-      }
-
-      res.status(200).json({
-        success: true,
-        data: {
-          id: user.id,
-          email: user.email,
-          fullName: user.fullName,
-          role: user.role?.name,
-          subscription: user.subscription?.planType,
-          emailVerified: user.isEmailVerified,
-          createdAt: user.createdAt
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
 }

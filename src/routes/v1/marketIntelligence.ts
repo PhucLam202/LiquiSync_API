@@ -1,8 +1,10 @@
 /**
- * Market Intelligence API Routes
+ * Market Intelligence API Routes [SECURED]
  * 
  * RESTful API routes for DeFi market intelligence endpoints with comprehensive
- * documentation, validation, and error handling.
+ * documentation, validation, authentication, and error handling.
+ * 
+ * SECURITY: All endpoints require API key authentication and rate limiting.
  */
 
 import { Router } from 'express';
@@ -13,6 +15,8 @@ import { marketIntelligenceService } from '../../services/marketIntelligenceServ
 import { ValidationHelper } from '../../utils/validationHelper.js';
 import { createCacheManager } from '../../utils/intelligentCacheManager.js';
 import { logger } from '../../utils/logger.js';
+import { apiKeyAuth } from '../../middleware/auth/apiKeyAuth.js';
+import { rateLimitMiddleware } from '../../middleware/rateLimiter.js';
 
 const router:Router = Router();
 
@@ -291,7 +295,7 @@ const controller = createMarketIntelligenceController(
  *       500:
  *         description: Internal server error
  */
-router.get('/overview', controller.getMarketOverview);
+router.get('/overview', apiKeyAuth, rateLimitMiddleware, controller.getMarketOverview);
 
 /**
  * @swagger
@@ -384,7 +388,7 @@ router.get('/overview', controller.getMarketOverview);
  *                               type: number
  *                               description: Market diversity index
  */
-router.get('/dominance', controller.getMarketDominance);
+router.get('/dominance', apiKeyAuth, rateLimitMiddleware, controller.getMarketDominance);
 
 /**
  * @swagger
@@ -447,7 +451,7 @@ router.get('/dominance', controller.getMarketDominance);
  *       200:
  *         description: Trending protocols analysis retrieved successfully
  */
-router.get('/trending', controller.getTrendingProtocols);
+router.get('/trending', apiKeyAuth, rateLimitMiddleware, controller.getTrendingProtocols);
 
 /**
  * @swagger
@@ -495,7 +499,7 @@ router.get('/trending', controller.getTrendingProtocols);
  *       200:
  *         description: Market movers analysis retrieved successfully
  */
-router.get('/movers', controller.getMarketMovers);
+router.get('/movers', apiKeyAuth, rateLimitMiddleware, controller.getMarketMovers);
 
 /**
  * @swagger
@@ -598,7 +602,7 @@ router.get('/movers', controller.getMarketMovers);
  *                       top3ChainsDominance: 78.9
  *                       diversityIndex: 0.42
  */
-router.get('/chains/overview', controller.getChainsOverview);
+router.get('/chains/overview', apiKeyAuth, rateLimitMiddleware, controller.getChainsOverview);
 
 /**
  * @swagger
@@ -757,7 +761,7 @@ router.get('/chains/overview', controller.getChainsOverview);
  *       500:
  *         description: Internal server error
  */
-router.get('/chains/:chain/ecosystem', controller.getChainEcosystem);
+router.get('/chains/:chain/ecosystem', apiKeyAuth, rateLimitMiddleware, controller.getChainEcosystem);
 
 // Add request logging middleware
 router.use((req, _res, next) => {

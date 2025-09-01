@@ -1,8 +1,14 @@
-/// # Stablecoin Ecosystem Routes
+/// # Stablecoin Ecosystem Routes [SECURED]
 /// 
 /// Comprehensive route definitions for stablecoin ecosystem data endpoints.
 /// Provides access to market analytics, risk assessment, and cross-chain
 /// stablecoin circulation data with enterprise-grade security.
+/// 
+/// ## SECURITY IMPLEMENTATION:
+/// - **🔐 API Key Authentication**: All endpoints require valid API keys
+/// - **📊 Subscription-Based Rate Limiting**: Usage tracked by subscription tier  
+/// - **🛡️ Multi-Layer Protection**: API key auth + general rate limiting
+/// - **📝 Usage Tracking**: Comprehensive request logging and analytics
 /// 
 /// ## Route Responsibilities:
 /// - **Market Data Access**: Comprehensive stablecoin market information
@@ -11,6 +17,7 @@
 /// - **Market Intelligence**: Top performers and ecosystem analytics
 /// 
 /// ## Security Features:
+/// - API key authentication required for all endpoints
 /// - Rate limiting on all endpoints to prevent API abuse
 /// - Comprehensive input validation and sanitization
 /// - Parameter bounds checking and format validation
@@ -46,6 +53,7 @@
 import express from 'express';
 import { stablecoinController } from '../../controllers/stablecoinController.js';
 import { rateLimitMiddleware } from '../../middleware/rateLimiter.js';
+import { apiKeyAuth } from '../../middleware/auth/apiKeyAuth.js';
 
 /// ## Stablecoin Router Configuration
 /// 
@@ -250,7 +258,7 @@ const router: express.Router = express.Router();
 /// - **Features**: Filter by peg type, mechanism, market cap, chain
 /// - **Performance**: Optimized sorting, conditional chain data inclusion
 /// - **Pagination**: Configurable limits (1-100) with bounds checking
-router.get('/', rateLimitMiddleware, stablecoinController.getStablecoins);
+router.get('/', apiKeyAuth, rateLimitMiddleware, stablecoinController.getStablecoins);
 
 /**
  * @swagger
@@ -297,7 +305,7 @@ router.get('/', rateLimitMiddleware, stablecoinController.getStablecoins);
 /// - **Features**: Case-insensitive symbol matching
 /// - **Validation**: 20-character limit, injection protection
 /// - **Response**: Complete stablecoin asset with risk metrics
-router.get('/symbol/:symbol', rateLimitMiddleware, stablecoinController.getStablecoinBySymbol);
+router.get('/symbol/:symbol', apiKeyAuth, rateLimitMiddleware, stablecoinController.getStablecoinBySymbol);
 
 /**
  * @swagger
@@ -344,7 +352,7 @@ router.get('/symbol/:symbol', rateLimitMiddleware, stablecoinController.getStabl
 /// - **Features**: Supports complex IDs (e.g., "dai-dai-stablecoin")
 /// - **Validation**: Alphanumeric validation, injection protection
 /// - **Response**: Complete stablecoin asset with all metadata
-router.get('/id/:id', rateLimitMiddleware, stablecoinController.getStablecoinById);
+router.get('/id/:id', apiKeyAuth, rateLimitMiddleware, stablecoinController.getStablecoinById);
 
 /**
  * @swagger
@@ -430,7 +438,7 @@ router.get('/id/:id', rateLimitMiddleware, stablecoinController.getStablecoinByI
 /// - **Features**: Multi-level chain name matching, circulation totals
 /// - **Analytics**: Chain-specific metrics, sorted by circulation
 /// - **Response**: Simplified format focused on chain relevance
-router.get('/chain/:chain', rateLimitMiddleware, stablecoinController.getStablecoinsByChain);
+router.get('/chain/:chain', apiKeyAuth, rateLimitMiddleware, stablecoinController.getStablecoinsByChain);
 
 /**
  * @swagger
@@ -477,7 +485,7 @@ router.get('/chain/:chain', rateLimitMiddleware, stablecoinController.getStablec
 /// - **Features**: Market cap breakdown, mechanism analysis, chain distribution
 /// - **Analytics**: Stability metrics, risk distribution, growth rates
 /// - **Performance**: Cached calculations with intelligent aggregation
-router.get('/analytics', rateLimitMiddleware, stablecoinController.getAnalytics);
+router.get('/analytics', apiKeyAuth, rateLimitMiddleware, stablecoinController.getAnalytics);
 
 /**
  * @swagger
@@ -520,7 +528,7 @@ router.get('/analytics', rateLimitMiddleware, stablecoinController.getAnalytics)
 /// - **Features**: Automatic market cap sorting, clean response format
 /// - **Performance**: Optimized for ranking, removes chain data
 /// - **Use Cases**: Dashboard widgets, market overview displays
-router.get('/top', rateLimitMiddleware, stablecoinController.getTopStablecoins);
+router.get('/top', apiKeyAuth, rateLimitMiddleware, stablecoinController.getTopStablecoins);
 
 /**
  * @swagger
@@ -564,6 +572,6 @@ router.get('/top', rateLimitMiddleware, stablecoinController.getTopStablecoins);
 /// - **Features**: Configurable stability threshold, worst-first sorting
 /// - **Risk Management**: Optimized for monitoring and alert systems
 /// - **Use Cases**: Risk dashboards, depegging alerts, portfolio analysis
-router.get('/depegged', rateLimitMiddleware, stablecoinController.getDepeggedStablecoins);
+router.get('/depegged', apiKeyAuth, rateLimitMiddleware, stablecoinController.getDepeggedStablecoins);
 
 export default router;

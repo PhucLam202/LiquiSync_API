@@ -9,6 +9,7 @@ import { OtpService } from "../otp/otpService.js";
 import { OTPType } from "../../types/otpTypes.js";
 import { EmailService } from "../email/emailService.js";
 import { PasswordUtils } from "../../utils/helpers/passwordUtils.js";
+import { ApiKeyService } from "../apiKey/apiKeyService.js";
 import {
   USER_STATUS_CONSTANTS,
   getUserStatusMessage,
@@ -145,7 +146,7 @@ export class AuthService {
 
     // Hash password using Argon2id
     const passwordHash = await PasswordUtils.hashPassword(password);
-
+    
     // Complete user profile
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
@@ -161,6 +162,19 @@ export class AuthService {
     // Generate tokens for immediate login
     const accessToken = this.generateAccessToken(updatedUser);
     const refreshToken = await this.generateRefreshToken(updatedUser.id);
+
+    // Automatically create default API key for new user
+    let apiKeyResult = null;
+    try {
+      apiKeyResult = await ApiKeyService.createApiKey(updatedUser.id, {
+        name: "Default API Key",
+        permissions: ["READ"], // Default read-only permissions
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+      });
+    } catch (error) {
+      console.error("Failed to create default API key:", error);
+      // Don't fail the registration if API key creation fails
+    }
 
     // Send welcome email
     try {
@@ -178,6 +192,12 @@ export class AuthService {
         email: updatedUser.email,
         fullName: updatedUser.fullName,
       },
+      apiKey: apiKeyResult ? {
+        key: apiKeyResult.key,
+        keyPrefix: apiKeyResult.keyPrefix,
+        name: apiKeyResult.name,
+        permissions: apiKeyResult.permissions
+      } : null
     };
   }
 
@@ -467,6 +487,19 @@ export class AuthService {
       const accessToken = this.generateAccessToken(user);
       const refreshToken = await this.generateRefreshToken(user.id);
 
+      // Automatically create default API key for new Web3 user
+      let apiKeyResult = null;
+      try {
+        apiKeyResult = await ApiKeyService.createApiKey(user.id, {
+          name: "Default Web3 API Key",
+          permissions: ["READ"], // Default read-only permissions
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+        });
+      } catch (error) {
+        console.error("Failed to create default API key for Web3 user:", error);
+        // Don't fail the login if API key creation fails
+      }
+
       // Update last login
       await prisma.user.update({
         where: { id: user.id },
@@ -486,6 +519,12 @@ export class AuthService {
           walletAddress: user.walletAddress,
           authType: user.authType,
         },
+        apiKey: apiKeyResult ? {
+          key: apiKeyResult.key,
+          keyPrefix: apiKeyResult.keyPrefix,
+          name: apiKeyResult.name,
+          permissions: apiKeyResult.permissions
+        } : null
       };
     } catch (error) {
       console.error("Error in web3Login:", error);
@@ -591,6 +630,25 @@ export class AuthService {
       const accessToken = this.generateAccessToken(updatedUser);
       const refreshToken = await this.generateRefreshToken(updatedUser.id);
 
+      // Create API key if user doesn't have one yet
+      let apiKeyResult = null;
+      try {
+        const existingKeys = await prisma.apiKey.count({
+          where: { userId: updatedUser.id, isActive: true }
+        });
+        
+        if (existingKeys === 0) {
+          apiKeyResult = await ApiKeyService.createApiKey(updatedUser.id, {
+            name: "Default API Key",
+            permissions: ["READ"], // Default read-only permissions
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+          });
+        }
+      } catch (error) {
+        console.error("Failed to create default API key:", error);
+        // Don't fail the linking if API key creation fails
+      }
+
       return {
         accessToken,
         refreshToken,
@@ -601,6 +659,12 @@ export class AuthService {
           walletAddress: updatedUser.walletAddress,
           authType: updatedUser.authType,
         },
+        apiKey: apiKeyResult ? {
+          key: apiKeyResult.key,
+          keyPrefix: apiKeyResult.keyPrefix,
+          name: apiKeyResult.name,
+          permissions: apiKeyResult.permissions
+        } : null
       };
     } catch (error) {
       console.error("Error linking email to Web3 user:", error);
@@ -609,6 +673,92 @@ export class AuthService {
       }
       throw AppError.internalError("Internal server error");
     }
+  }
+
+  /**
+   * Get user profile by ID
+   */
+  static async getProfile(userId: string): Promise<any> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { 
+        role: true, 
+        subscription: true 
+      },
+    });
+
+    if (!user) {
+      throw AppError.notFound('User not found');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      walletAddress: user.walletAddress,
+      authType: user.authType,
+      role: user.role?.name,
+      subscription: user.subscription?.planType,
+      emailVerified: user.isEmailVerified,
+      isActive: user.isActive,
+      status: user.status,
+      lastLoginAt: user.lastLoginAt
+    };
+  }
+
+  /**
+   * Update user profile
+   */
+  static async updateProfile(userId: string, updateData: {
+    fullName?: string;
+    email?: string;
+  }): Promise<any> {
+    // Validate input
+    if (updateData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(updateData.email)) {
+        throw AppError.badRequest("Invalid email format");
+      }
+
+      // Check if email is already taken by another user
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: updateData.email.toLowerCase(),
+          id: { not: userId }
+        }
+      });
+
+      if (existingUser) {
+        throw AppError.badRequest("Email is already taken");
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(updateData.fullName && { fullName: updateData.fullName }),
+        ...(updateData.email && { email: updateData.email.toLowerCase() }),
+        updatedAt: new Date()
+      },
+      include: { 
+        role: true, 
+        subscription: true 
+      },
+    });
+
+    return {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      fullName: updatedUser.fullName,
+      walletAddress: updatedUser.walletAddress,
+      authType: updatedUser.authType,
+      role: updatedUser.role?.name,
+      subscription: updatedUser.subscription?.planType,
+      emailVerified: updatedUser.isEmailVerified,
+      isActive: updatedUser.isActive,
+      status: updatedUser.status,
+      lastLoginAt: updatedUser.lastLoginAt
+    };
   }
 }
 

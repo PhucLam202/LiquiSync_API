@@ -1,14 +1,21 @@
-/// # Unified Bifrost Protocol Routes
+/// # Unified Bifrost Protocol Routes [SECURED]
 /// 
 /// Complete route definitions for Bifrost liquid staking protocol endpoints.
 /// Consolidates yields and exchange rate functionality into a unified API.
+/// 
+/// ## SECURITY IMPLEMENTATION:
+/// - **🔐 API Key Authentication**: All endpoints require valid API keys
+/// - **📊 Subscription-Based Rate Limiting**: Usage tracked by subscription tier
+/// - **🛡️ Multi-Layer Protection**: API key auth + general rate limiting
+/// - **📝 Usage Tracking**: Comprehensive request logging and analytics
+/// - **🚫 IP Whitelisting**: Optional IP restrictions per API key
 /// 
 /// ## Route Responsibilities:
 /// - **Yield Data Management**: DeFi yield farming data with advanced filtering
 /// - **Exchange Rate Management**: Real-time vToken to base token exchange rates
 /// - **Token Conversion**: Secure token amount conversions with validation
 /// - **Protocol Discovery**: Supported token lists and protocol metadata
-/// - **Security Enforcement**: Input validation and rate limiting
+/// - **Security Enforcement**: Authentication, authorization, and rate limiting
 /// 
 /// ## Security Features:
 /// - All routes use comprehensive input validation from controllers
@@ -35,6 +42,8 @@
 
 import { Router, type Router as ExpressRouter } from 'express';
 import { bifrostController } from '../../controllers/bifrostController.js';
+import { apiKeyAuth } from '../../middleware/auth/apiKeyAuth.js';
+import { rateLimitMiddleware } from '../../middleware/rateLimiter.js';
 
 /// ## Unified Bifrost Router Configuration
 /// 
@@ -181,14 +190,14 @@ const router: ExpressRouter = Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-/// **GET /yields**
+/// **GET /yields** [PROTECTED]
 /// Retrieves all available yields with optional filtering and sorting
+/// - **Security**: API key authentication required, subscription-based rate limiting
 /// - **Default Behavior**: Returns all yield data without requiring parameters
-/// - **Security**: Query parameter validation, APY/limit bounds checking
 /// - **Features**: Optional filtering by minApy, sorting by apy/tvl, pagination
 /// - **Validation**: Multi-layer input validation and sanitization
 /// - **Performance**: Cached data with intelligent transformation
-router.get('/yields', bifrostController.getYields.bind(bifrostController));
+router.get('/yields', apiKeyAuth, rateLimitMiddleware, bifrostController.getYields.bind(bifrostController));
 
 /**
  * @swagger
@@ -239,13 +248,13 @@ router.get('/yields', bifrostController.getYields.bind(bifrostController));
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-/// **GET /yields/{symbol}**
+/// **GET /yields/{symbol}** [PROTECTED]
 /// Retrieves yield data for a specific token symbol
-/// - **Security**: Symbol sanitization, format validation, support verification
+/// - **Security**: API key authentication required, symbol sanitization, format validation
 /// - **Features**: Smart symbol normalization (handles case variations)
 /// - **Validation**: 5-layer validation including existence checks
 /// - **Performance**: Efficient single-token data extraction
-router.get('/yields/:symbol', bifrostController.getYieldBySymbol.bind(bifrostController));
+router.get('/yields/:symbol', apiKeyAuth, rateLimitMiddleware, bifrostController.getYieldBySymbol.bind(bifrostController));
 
 // ============================================================================
 // EXCHANGE RATE ENDPOINTS
@@ -393,12 +402,12 @@ router.get('/yields/:symbol', bifrostController.getYieldBySymbol.bind(bifrostCon
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-/// **GET /exchange-rates/{token}**
+/// **GET /exchange-rates/{token}** [PROTECTED]
 /// Retrieves current exchange rate for a specific vToken
-/// - **Security**: Token format validation, supported token verification
+/// - **Security**: API key authentication required, token format validation
 /// - **Features**: Historical data, volatility metrics (optional)
 /// - **Caching**: 5-minute cache TTL for performance
-router.get('/exchange-rates/:token', bifrostController.getExchangeRate.bind(bifrostController));
+router.get('/exchange-rates/:token', apiKeyAuth, rateLimitMiddleware, bifrostController.getExchangeRate.bind(bifrostController));
 
 /**
  * @swagger
@@ -602,12 +611,12 @@ router.get('/exchange-rates/:token', bifrostController.getExchangeRate.bind(bifr
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-/// **GET /convert**
+/// **GET /convert** [PROTECTED]
 /// Converts token amounts between vTokens and base tokens
-/// - **Security**: 11-layer validation including token pair verification
+/// - **Security**: API key authentication required, 11-layer validation including token pair verification
 /// - **Features**: Slippage protection, fee breakdown (optional)
 /// - **Validation**: Amount, token pair, and parameter validation
-router.get('/convert', bifrostController.convertTokenAmount.bind(bifrostController));
+router.get('/convert', apiKeyAuth, rateLimitMiddleware, bifrostController.convertTokenAmount.bind(bifrostController));
 
 /**
  * @swagger
@@ -650,12 +659,12 @@ router.get('/convert', bifrostController.convertTokenAmount.bind(bifrostControll
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-/// **GET /supported-tokens**
+/// **GET /supported-tokens** [PROTECTED]
 /// Lists all supported tokens for conversions
-/// - **Security**: No user input, read-only endpoint
+/// - **Security**: API key authentication required
 /// - **Features**: Token count, protocol metadata
 /// - **Caching**: Service-level caching for performance
-router.get('/supported-tokens', bifrostController.getSupportedTokens.bind(bifrostController));
+router.get('/supported-tokens', apiKeyAuth, rateLimitMiddleware, bifrostController.getSupportedTokens.bind(bifrostController));
 
 /**
  * @swagger
@@ -745,13 +754,13 @@ router.get('/supported-tokens', bifrostController.getSupportedTokens.bind(bifros
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-/// **GET /tvl**
+/// **GET /tvl** [PROTECTED]
 /// Retrieves comprehensive Bifrost protocol TVL data
+/// - **Security**: API key authentication required
 /// - **Data Source**: Official Bifrost /api/site endpoint
 /// - **Features**: Protocol overview, per-token breakdown, market analysis
 /// - **Caching**: 5-minute TTL for performance
-/// - **Security**: Read-only endpoint with no user input
-router.get('/tvl', bifrostController.getBifrostTvl.bind(bifrostController));
+router.get('/tvl', apiKeyAuth, rateLimitMiddleware, bifrostController.getBifrostTvl.bind(bifrostController));
 
 // ============================================================================
 // EXTENDED API ENDPOINTS
@@ -860,10 +869,10 @@ router.get('/tvl', bifrostController.getBifrostTvl.bind(bifrostController));
 /// - `status`: active|paused|deprecated
 /// - `riskLevel`: low|medium|high
 /// 
-/// **Security**: Multi-layer query validation and sanitization
+/// **Security**: API key authentication required, multi-layer query validation and sanitization
 /// **Features**: Ecosystem summary, network status, pagination metadata
 /// **Caching**: Service-level with 10-minute TTL
-router.get('/vtokens', bifrostController.getVTokens.bind(bifrostController));
+router.get('/vtokens', apiKeyAuth, rateLimitMiddleware, bifrostController.getVTokens.bind(bifrostController));
 
 /**
  * @swagger
@@ -921,10 +930,10 @@ router.get('/vtokens', bifrostController.getVTokens.bind(bifrostController));
 /// - Governance and events
 /// - Technical information
 /// 
-/// **Security**: Symbol format validation and sanitization
+/// **Security**: API key authentication required, symbol format validation and sanitization
 /// **Features**: Real-time data with historical context
 /// **Caching**: 5-minute TTL for fresh data
-router.get('/vtokens/:symbol', bifrostController.getVTokenBySymbol.bind(bifrostController));
+router.get('/vtokens/:symbol', apiKeyAuth, rateLimitMiddleware, bifrostController.getVTokenBySymbol.bind(bifrostController));
 
 
 export default router;

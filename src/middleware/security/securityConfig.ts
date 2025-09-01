@@ -26,10 +26,10 @@ export const SECURITY_CONFIG = {
   },
   API_KEY: {
     LENGTH: 32,
-    PREFIX: 'ak_live_',
+    PREFIX: 'LS-',
     HASH_ALGORITHM: 'sha256',
     // SECURITY FIX: No query parameter support
-    ALLOWED_HEADERS: ['USER_API', 'X-API-Key', 'Authorization']
+    ALLOWED_HEADERS: ['X-API-Key', 'Authorization', 'USER_API']
   },
   RATE_LIMITING: {
     WINDOW_MS: 60 * 1000, // 1 minute

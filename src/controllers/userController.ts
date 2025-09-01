@@ -1,8 +1,9 @@
 // File: src/controllers/userController.ts
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { UserService } from '../services/user/userService.js';
 import { AppError } from '../middleware/e/AppError.js';
 import { ValidationUtils } from '../utils/helpers/validators.js';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -18,47 +19,12 @@ export class UserController {
         throw AppError.unauthorized('User not authenticated');
       }
 
-      const userData = await prisma.user.findUnique({
-        where: { id: user.id },
-        include: {
-          role: {
-            include: {
-              rolePermissions: {
-                include: {
-                  permission: true
-                }
-              }
-            }
-          },
-          subscription: true
-        }
-      });
-
-      if (!userData) {
-        throw AppError.notFound('User not found');
-      }
-
-      const permissions = userData.role.rolePermissions.map(rp => rp.permission.name);
+      // Get user profile through service layer
+      const profile = await UserService.getProfile(user.id);
 
       res.status(200).json({
         success: true,
-        data: {
-          id: userData.id,
-          email: userData.email,
-          fullName: userData.fullName,
-          role: userData.role.name,
-          permissions,
-          subscription: {
-            planType: userData.subscription.planType,
-            currentUsage: userData.subscription.currentUsage,
-            monthlyLimit: userData.subscription.monthlyLimit,
-            resetDate: userData.subscription.resetDate
-          },
-          emailVerified: userData.isEmailVerified,
-          status: userData.status,
-          createdAt: userData.createdAt,
-          lastLoginAt: userData.lastLoginAt
-        }
+        data: profile
       });
     } catch (error) {
       next(error);
@@ -71,41 +37,68 @@ export class UserController {
   static async updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const user = (req as any).user;
-      const { fullName } = req.body;
+      const { fullName, email } = req.body;
 
       if (!user) {
         throw AppError.unauthorized('User not authenticated');
       }
 
-      // Validate and sanitize input
-      const updateData: any = {};
-      
-      if (fullName !== undefined) {
-        if (typeof fullName !== 'string' || fullName.length < 1 || fullName.length > 100) {
-          throw AppError.badRequest('Full name must be between 1 and 100 characters');
-        }
-        updateData.fullName = ValidationUtils.sanitizeInput(fullName);
-      }
-
-      const updatedUser = await prisma.user.update({
-        where: { id: user.id },
-        data: updateData,
-        include: {
-          role: true,
-          subscription: true
-        }
+      // Update profile through service layer
+      const updatedProfile = await UserService.updateProfile(user.id, {
+        fullName,
+        email
       });
 
       res.status(200).json({
         success: true,
         message: 'Profile updated successfully',
-        data: {
-          id: updatedUser.id,
-          email: updatedUser.email,
-          fullName: updatedUser.fullName,
-          role: updatedUser.role.name,
-          subscription: updatedUser.subscription.planType
-        }
+        data: updatedProfile
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get user usage statistics
+   */
+  static async getUserUsage(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = (req as any).user;
+
+      if (!user) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      // Get usage through service layer
+      const usage = await UserService.getUserUsage(user.id);
+
+      res.status(200).json({
+        success: true,
+        data: usage
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get user API keys
+   */
+  static async getUserApiKeys(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = (req as any).user;
+
+      if (!user) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      // Get API keys through service layer
+      const apiKeys = await UserService.getUserApiKeys(user.id);
+
+      res.status(200).json({
+        success: true,
+        data: apiKeys
       });
     } catch (error) {
       next(error);

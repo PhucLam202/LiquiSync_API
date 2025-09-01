@@ -35,7 +35,6 @@ export const apiKeyAuth = async (
     const keyHash = createHash(SECURITY_CONFIG.API_KEY.HASH_ALGORITHM)
       .update(apiKey)
       .digest('hex');
-    
     // Fetch API key with user context
     const apiKeyRecord = await prisma.apiKey.findUnique({
       where: { keyHash },

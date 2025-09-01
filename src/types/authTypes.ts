@@ -96,6 +96,12 @@ export interface LoginResult {
     walletAddress?: string | null;
     authType?: string;
   };
+  apiKey?: {
+    key: string;
+    keyPrefix: string;
+    name: string;
+    permissions: string[];
+  } | null;
 }
 
 export interface VerificationResult {
