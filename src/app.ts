@@ -169,16 +169,18 @@ app.use('/docs', apiReference({
     }
   `
 }));
-  // src/routes/v1/index.ts
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Health check endpoint
 app.get('/health', (_, res) => {
     res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString()
     });
   });
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
 
 // Root endpoint
 app.get("/", (req, res) => {
