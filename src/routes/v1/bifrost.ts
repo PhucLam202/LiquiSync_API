@@ -42,7 +42,7 @@
 
 import { Router, type Router as ExpressRouter } from 'express';
 import { bifrostController } from '../../controllers/bifrostController.js';
-import { apiKeyAuth } from '../../middleware/auth/apiKeyAuth.js';
+// import { apiKeyAuth } from '../../middleware/auth/apiKeyAuth.js';
 import { rateLimitMiddleware } from '../../middleware/rateLimiter.js';
 
 /// ## Unified Bifrost Router Configuration
@@ -197,7 +197,8 @@ const router: ExpressRouter = Router();
 /// - **Features**: Optional filtering by minApy, sorting by apy/tvl, pagination
 /// - **Validation**: Multi-layer input validation and sanitization
 /// - **Performance**: Cached data with intelligent transformation
-router.get('/yields', apiKeyAuth, rateLimitMiddleware, bifrostController.getYields.bind(bifrostController));
+// router.get('/yields', apiKeyAuth, rateLimitMiddleware, bifrostController.getYields.bind(bifrostController));
+router.get('/yields', rateLimitMiddleware, bifrostController.getYields.bind(bifrostController));
 
 /**
  * @swagger
@@ -212,7 +213,22 @@ router.get('/yields', apiKeyAuth, rateLimitMiddleware, bifrostController.getYiel
  *         description: Token symbol (e.g., vDOT, vKSM)
  *         schema:
  *           type: string
- *         example: vDOT
+ *         examples:
+ *           vDOT:
+ *             value: vDOT
+ *             summary: Polkadot liquid staking token
+ *           vKSM:
+ *             value: vKSM
+ *             summary: Kusama liquid staking token
+ *           vBNC:
+ *             value: vBNC
+ *             summary: Bifrost native token
+ *           vETH:
+ *             value: vETH
+ *             summary: Ethereum liquid staking token
+ *           vASTR:
+ *             value: vASTR
+ *             summary: Astar liquid staking token
  *     responses:
  *       200:
  *         description: Yield data for specific token
@@ -254,7 +270,7 @@ router.get('/yields', apiKeyAuth, rateLimitMiddleware, bifrostController.getYiel
 /// - **Features**: Smart symbol normalization (handles case variations)
 /// - **Validation**: 5-layer validation including existence checks
 /// - **Performance**: Efficient single-token data extraction
-router.get('/yields/:symbol', apiKeyAuth, rateLimitMiddleware, bifrostController.getYieldBySymbol.bind(bifrostController));
+router.get('/yields/:symbol', rateLimitMiddleware, bifrostController.getYieldBySymbol.bind(bifrostController));
 
 // ============================================================================
 // EXCHANGE RATE ENDPOINTS
@@ -273,7 +289,22 @@ router.get('/yields/:symbol', apiKeyAuth, rateLimitMiddleware, bifrostController
  *         schema:
  *           type: string
  *         description: vToken symbol (e.g., vKSM, vDOT)
- *         example: vKSM
+ *         examples:
+ *           vDOT:
+ *             value: vDOT
+ *             summary: Polkadot liquid staking token
+ *           vKSM:
+ *             value: vKSM
+ *             summary: Kusama liquid staking token
+ *           vBNC:
+ *             value: vBNC
+ *             summary: Bifrost native token
+ *           vETH:
+ *             value: vETH
+ *             summary: Ethereum liquid staking token
+ *           vASTR:
+ *             value: vASTR
+ *             summary: Astar liquid staking token
  *       - in: query
  *         name: includeHistory
  *         schema:
@@ -407,7 +438,7 @@ router.get('/yields/:symbol', apiKeyAuth, rateLimitMiddleware, bifrostController
 /// - **Security**: API key authentication required, token format validation
 /// - **Features**: Historical data, volatility metrics (optional)
 /// - **Caching**: 5-minute cache TTL for performance
-router.get('/exchange-rates/:token', apiKeyAuth, rateLimitMiddleware, bifrostController.getExchangeRate.bind(bifrostController));
+router.get('/exchange-rates/:token', rateLimitMiddleware, bifrostController.getExchangeRate.bind(bifrostController));
 
 /**
  * @swagger
@@ -616,7 +647,7 @@ router.get('/exchange-rates/:token', apiKeyAuth, rateLimitMiddleware, bifrostCon
 /// - **Security**: API key authentication required, 11-layer validation including token pair verification
 /// - **Features**: Slippage protection, fee breakdown (optional)
 /// - **Validation**: Amount, token pair, and parameter validation
-router.get('/convert', apiKeyAuth, rateLimitMiddleware, bifrostController.convertTokenAmount.bind(bifrostController));
+router.get('/convert', rateLimitMiddleware, bifrostController.convertTokenAmount.bind(bifrostController));
 
 /**
  * @swagger
@@ -664,7 +695,7 @@ router.get('/convert', apiKeyAuth, rateLimitMiddleware, bifrostController.conver
 /// - **Security**: API key authentication required
 /// - **Features**: Token count, protocol metadata
 /// - **Caching**: Service-level caching for performance
-router.get('/supported-tokens', apiKeyAuth, rateLimitMiddleware, bifrostController.getSupportedTokens.bind(bifrostController));
+router.get('/supported-tokens', rateLimitMiddleware, bifrostController.getSupportedTokens.bind(bifrostController));
 
 /**
  * @swagger
@@ -760,7 +791,7 @@ router.get('/supported-tokens', apiKeyAuth, rateLimitMiddleware, bifrostControll
 /// - **Data Source**: Official Bifrost /api/site endpoint
 /// - **Features**: Protocol overview, per-token breakdown, market analysis
 /// - **Caching**: 5-minute TTL for performance
-router.get('/tvl', apiKeyAuth, rateLimitMiddleware, bifrostController.getBifrostTvl.bind(bifrostController));
+router.get('/tvl', rateLimitMiddleware, bifrostController.getBifrostTvl.bind(bifrostController));
 
 // ============================================================================
 // EXTENDED API ENDPOINTS
@@ -796,53 +827,12 @@ router.get('/tvl', apiKeyAuth, rateLimitMiddleware, bifrostController.getBifrost
  *           default: 20
  *         description: Number of items per page
  *       - in: query
- *         name: network
- *         schema:
- *           type: array
- *           items:
- *             type: string
- *         description: Filter by network (bifrost, polkadot, kusama, etc.)
- *       - in: query
- *         name: minApy
- *         schema:
- *           type: number
- *         description: Minimum APY filter
- *       - in: query
- *         name: maxApy
- *         schema:
- *           type: number
- *         description: Maximum APY filter
- *       - in: query
- *         name: minTvl
- *         schema:
- *           type: number
- *         description: Minimum TVL filter (USD)
- *       - in: query
  *         name: sortBy
  *         schema:
  *           type: string
  *           enum: [apy, tvl, volume, holders, name]
  *           default: tvl
  *         description: Sort field
- *       - in: query
- *         name: sortOrder
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *           default: desc
- *         description: Sort order
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [active, paused, deprecated]
- *         description: Filter by token status
- *       - in: query
- *         name: riskLevel
- *         schema:
- *           type: string
- *           enum: [low, medium, high]
- *         description: Filter by risk level
  *     responses:
  *       200:
  *         description: vTokens list retrieved successfully
@@ -861,18 +851,13 @@ router.get('/tvl', apiKeyAuth, rateLimitMiddleware, bifrostController.getBifrost
 /// 
 /// **Query Parameters**:
 /// - `page`, `limit`: Pagination controls (limit max 100)
-/// - `network`: Filter by network (array support)
-/// - `minApy`, `maxApy`: APY range filtering
-/// - `minTvl`: TVL minimum threshold
 /// - `sortBy`: apy|tvl|volume|holders|name
 /// - `sortOrder`: asc|desc
-/// - `status`: active|paused|deprecated
-/// - `riskLevel`: low|medium|high
 /// 
 /// **Security**: API key authentication required, multi-layer query validation and sanitization
 /// **Features**: Ecosystem summary, network status, pagination metadata
 /// **Caching**: Service-level with 10-minute TTL
-router.get('/vtokens', apiKeyAuth, rateLimitMiddleware, bifrostController.getVTokens.bind(bifrostController));
+router.get('/vtokens', rateLimitMiddleware, bifrostController.getVTokens.bind(bifrostController));
 
 /**
  * @swagger
@@ -895,6 +880,22 @@ router.get('/vtokens', apiKeyAuth, rateLimitMiddleware, bifrostController.getVTo
  *           type: string
  *           pattern: '^[A-Z0-9]{2,10}$'
  *         description: vToken symbol (e.g., vKSM, vDOT)
+ *         examples:
+ *           vDOT:
+ *             value: vDOT
+ *             summary: Polkadot liquid staking token
+ *           vKSM:
+ *             value: vKSM
+ *             summary: Kusama liquid staking token
+ *           vBNC:
+ *             value: vBNC
+ *             summary: Bifrost native token
+ *           vETH:
+ *             value: vETH
+ *             summary: Ethereum liquid staking token
+ *           vASTR:
+ *             value: vASTR
+ *             summary: Astar liquid staking token
  *     responses:
  *       200:
  *         description: vToken details retrieved successfully
@@ -933,7 +934,7 @@ router.get('/vtokens', apiKeyAuth, rateLimitMiddleware, bifrostController.getVTo
 /// **Security**: API key authentication required, symbol format validation and sanitization
 /// **Features**: Real-time data with historical context
 /// **Caching**: 5-minute TTL for fresh data
-router.get('/vtokens/:symbol', apiKeyAuth, rateLimitMiddleware, bifrostController.getVTokenBySymbol.bind(bifrostController));
+router.get('/vtokens/:symbol', rateLimitMiddleware, bifrostController.getVTokenBySymbol.bind(bifrostController));
 
 
 export default router;

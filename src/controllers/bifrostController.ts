@@ -1,39 +1,3 @@
-/// # Bifrost Controller
-/// 
-/// Unified REST API controller managing all Bifrost protocol operations including:
-/// - DeFi yield farming data across supported tokens
-/// - vToken exchange rates and conversion services  
-/// - Token amount conversions with slippage protection
-/// 
-/// This controller consolidates yields and exchange rate functionality into a single
-/// cohesive interface for the Bifrost liquid staking protocol ecosystem.
-/// 
-/// ## Controller Responsibilities:
-/// - **Yield Data Aggregation**: Fetches and processes yield data from multiple sources
-/// - **Exchange Rate Management**: Real-time vToken to base token rate calculations
-/// - **Token Conversions**: Bidirectional token amount conversions with precision
-/// - **Input Validation**: Multi-layer validation for all query parameters
-/// - **Security Enforcement**: Sanitization and bounds checking for all inputs
-/// - **Response Formatting**: Standardized API responses with pagination
-/// - **Error Handling**: Graceful error propagation with proper HTTP status codes
-/// 
-/// ## Security Features:
-/// - **Parameter Sanitization**: Removes special characters and enforces length limits
-/// - **Bounds Checking**: Validates numeric parameters within reasonable ranges
-/// - **Token Validation**: Verifies tokens against supported list
-/// - **Input Type Validation**: Strict type checking for all parameters
-/// - **11-Layer Token Pair Security**: Comprehensive validation for conversions
-/// 
-/// ## API Endpoint Groups:
-/// ### Yields Endpoints:
-/// - `GET /bifrost/yields` - List all available yields with filtering and sorting
-/// - `GET /bifrost/yields/{symbol}` - Get yield data for specific token symbol
-/// 
-/// ### Exchange Rate Endpoints:
-/// - `GET /bifrost/exchange-rates/{token}` - Get exchange rate for specific vToken
-/// - `GET /bifrost/convert` - Convert between vToken and base token amounts
-/// - `GET /bifrost/supported-tokens` - List all supported tokens for conversion
-
 import { Request, Response, NextFunction } from 'express';
 import { bifrostService } from '../services/bifrostService.js';
 import { 
@@ -43,28 +7,13 @@ import {
   ConvertResponse, 
   ExchangeRateQuery,
   ConvertQuery,
-  VTokenListResponse,
-  VTokenDetailResponse,
-  VTokenListQuery,
   BifrostTvlResponse 
 } from '../types/index.js';
 import { AppError } from '../middleware/e/AppError.js';
 import { ErrorCode } from '../middleware/e/ErrorCode.js';
 import { logger } from '../utils/logger.js';
 
-/// ## BifrostController Class
-/// 
-/// Main controller class handling all Bifrost protocol API endpoints with
-/// comprehensive validation and security measures. Combines yields and 
-/// exchange rate functionality into a unified interface.
-/// 
-/// ### Features:
-/// - **Advanced Filtering**: APY thresholds, token types, protocol filters
-/// - **Intelligent Sorting**: Multi-criteria sorting (APY, TVL, etc.)
-/// - **Pagination Support**: Configurable limits with bounds checking
-/// - **Token Normalization**: Smart symbol handling and validation
-/// - **Exchange Rate Precision**: High-precision decimal calculations
-/// - **Slippage Protection**: Optional slippage tolerance for conversions
+
 export class BifrostController {
   
   /// ## Get All Yields Endpoint
@@ -604,51 +553,28 @@ export class BifrostController {
       const {
         page = 1,
         limit = 20,
-        network,
-        minApy,
-        maxApy,
         minTvl,
-        sortBy = 'tvl',
-        sortOrder = 'desc',
-        status,
-        riskLevel
+        sortBy = 'tvl'
       } = req.query;
 
       // Validate parameters
       const pageNum = Math.max(1, parseInt(page as string) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
-      const minApyNum = minApy ? parseFloat(minApy as string) : undefined;
-      const maxApyNum = maxApy ? parseFloat(maxApy as string) : undefined;
       const minTvlNum = minTvl ? parseFloat(minTvl as string) : undefined;
 
       // Validate sort parameters
       const validSortFields = ['apy', 'tvl', 'volume', 'holders', 'name'];
-      const validSortOrders = ['asc', 'desc'];
       
       if (!validSortFields.includes(sortBy as string)) {
         throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 'Invalid sortBy parameter');
       }
       
-      if (!validSortOrders.includes(sortOrder as string)) {
-        throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 'Invalid sortOrder parameter');
-      }
-
-      // Build filter options with proper type casting
-      const networkArray = network ? 
-        (Array.isArray(network) ? network.map(n => String(n)) : [String(network)]) : 
-        undefined;
-      
       const filterOptions = {
         page: pageNum,
         limit: limitNum,
-        network: networkArray,
-        minApy: minApyNum,
-        maxApy: maxApyNum,
         minTvl: minTvlNum,
         sortBy: sortBy as string,
-        sortOrder: sortOrder as string,
-        status: status as string,
-        riskLevel: riskLevel as string
+        sortOrder: 'desc' // Fixed to desc for consistent ordering
       };
 
       // Get vTokens data from service
@@ -711,7 +637,9 @@ export class BifrostController {
       // Clean and validate symbol
       const cleanSymbol = symbol.trim().toUpperCase();
       if (!/^[A-Z0-9]{2,10}$/.test(cleanSymbol)) {
-        throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 'Invalid symbol format');
+        throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 
+          `Invalid symbol format. Symbol must be 2-10 characters (letters and numbers only). ` +
+          `Examples: vDOT, vKSM, vBNC, vETH, DOT, KSM. Received: "${symbol}"`);
       }
 
       // Auto-convert base tokens to vTokens for user convenience

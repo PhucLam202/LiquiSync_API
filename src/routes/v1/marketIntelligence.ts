@@ -156,13 +156,6 @@ const controller = createMarketIntelligenceController(
  * 
  *     parameters:
  *       - in: query
- *         name: detail
- *         schema:
- *           type: string
- *           enum: [minimal, basic, full]
- *           default: basic
- *         description: Response detail level
- *       - in: query
  *         name: timeframe
  *         schema:
  *           type: string
@@ -170,17 +163,16 @@ const controller = createMarketIntelligenceController(
  *           default: 7d
  *         description: Analysis timeframe for growth calculations
  *       - in: query
- *         name: categories
- *         schema:
- *           type: string
- *         description: Comma-separated list of DeFi categories to filter
- *         example: "dex,lending,liquid-staking"
- *       - in: query
  *         name: chains
  *         schema:
- *           type: string
- *         description: Comma-separated list of blockchain networks to filter
- *         example: "ethereum,arbitrum,optimism"
+ *           type: array
+ *           items:
+ *             type: string
+ *             enum: [ETH, Celo, DOT, BTC, SOL, AVAX, MATIC, BNB, ADA, LINK]
+ *         style: form
+ *         explode: false
+ *         description: Array of individual blockchain networks to filter
+ *         example: ["ETH", "DOT", "SOL"]
  *       - in: query
  *         name: limit
  *         schema:
@@ -295,7 +287,7 @@ const controller = createMarketIntelligenceController(
  *       500:
  *         description: Internal server error
  */
-router.get('/overview', apiKeyAuth, rateLimitMiddleware, controller.getMarketOverview);
+router.get('/overview', rateLimitMiddleware, controller.getMarketOverview);
 
 /**
  * @swagger
@@ -317,13 +309,6 @@ router.get('/overview', apiKeyAuth, rateLimitMiddleware, controller.getMarketOve
  *       - Competitive health assessment
  * 
  *     parameters:
- *       - in: query
- *         name: detail
- *         schema:
- *           type: string
- *           enum: [minimal, basic, full]
- *           default: basic
- *         description: Response detail level
  *       - in: query
  *         name: limit
  *         schema:
@@ -388,7 +373,7 @@ router.get('/overview', apiKeyAuth, rateLimitMiddleware, controller.getMarketOve
  *                               type: number
  *                               description: Market diversity index
  */
-router.get('/dominance', apiKeyAuth, rateLimitMiddleware, controller.getMarketDominance);
+router.get('/dominance', rateLimitMiddleware, controller.getMarketDominance);
 
 /**
  * @swagger
@@ -422,22 +407,11 @@ router.get('/dominance', apiKeyAuth, rateLimitMiddleware, controller.getMarketDo
  *         explode: false
  *         description: Array of timeframes for analysis
  *       - in: query
- *         name: minTvl
- *         schema:
- *           type: number
- *           minimum: 0
- *           default: 1000000
- *         description: Minimum TVL threshold for inclusion
- *       - in: query
- *         name: categories
+ *         name: category
  *         schema:
  *           type: string
- *         description: Comma-separated list of categories to filter
- *       - in: query
- *         name: chains
- *         schema:
- *           type: string
- *         description: Comma-separated list of chains to filter
+ *           enum: [dex, lending, liquid-staking, yield-farming, derivatives, insurance, payments, assets, options, cross-chain, staking, nft, gaming, dao, launchpad, prediction-market, perpetuals, synthetics, bridge, index-funds]
+ *         description: DeFi category to filter trending protocols
  *       - in: query
  *         name: limit
  *         schema:
@@ -451,7 +425,7 @@ router.get('/dominance', apiKeyAuth, rateLimitMiddleware, controller.getMarketDo
  *       200:
  *         description: Trending protocols analysis retrieved successfully
  */
-router.get('/trending', apiKeyAuth, rateLimitMiddleware, controller.getTrendingProtocols);
+router.get('/trending', rateLimitMiddleware, controller.getTrendingProtocols);
 
 /**
  * @swagger
@@ -499,7 +473,7 @@ router.get('/trending', apiKeyAuth, rateLimitMiddleware, controller.getTrendingP
  *       200:
  *         description: Market movers analysis retrieved successfully
  */
-router.get('/movers', apiKeyAuth, rateLimitMiddleware, controller.getMarketMovers);
+router.get('/movers', rateLimitMiddleware, controller.getMarketMovers);
 
 /**
  * @swagger
@@ -602,7 +576,7 @@ router.get('/movers', apiKeyAuth, rateLimitMiddleware, controller.getMarketMover
  *                       top3ChainsDominance: 78.9
  *                       diversityIndex: 0.42
  */
-router.get('/chains/overview', apiKeyAuth, rateLimitMiddleware, controller.getChainsOverview);
+router.get('/chains/overview', rateLimitMiddleware, controller.getChainsOverview);
 
 /**
  * @swagger
@@ -638,14 +612,6 @@ router.get('/chains/overview', apiKeyAuth, rateLimitMiddleware, controller.getCh
  *             ]
  *         example: ethereum
  *         description: Blockchain identifier or alias
- * 
- *       - name: detail
- *         in: query
- *         schema:
- *           type: string
- *           enum: [minimal, basic, full]
- *           default: basic
- *         description: Response detail level
  * 
  *       - name: limit
  *         in: query
@@ -761,7 +727,7 @@ router.get('/chains/overview', apiKeyAuth, rateLimitMiddleware, controller.getCh
  *       500:
  *         description: Internal server error
  */
-router.get('/chains/:chain/ecosystem', apiKeyAuth, rateLimitMiddleware, controller.getChainEcosystem);
+router.get('/chains/:chain/ecosystem', rateLimitMiddleware, controller.getChainEcosystem);
 
 // Add request logging middleware
 router.use((req, _res, next) => {

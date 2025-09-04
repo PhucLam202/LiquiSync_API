@@ -1,32 +1,3 @@
-/// # Stablecoin Controller
-/// 
-/// REST API controller for managing stablecoin data operations across the entire
-/// DeFi ecosystem. Provides comprehensive stablecoin analytics, filtering, and
-/// market data with enterprise-grade security and validation.
-/// 
-/// ## Controller Responsibilities:
-/// - **Data Aggregation**: Fetches and processes stablecoin data from DeFiLlama
-/// - **Input Validation**: Multi-layer validation for all query parameters
-/// - **Security Enforcement**: Protection against injection and DoS attacks
-/// - **Response Formatting**: Standardized API responses with pagination
-/// - **Error Handling**: Graceful error propagation with proper HTTP status codes
-/// 
-/// ## Security Features:
-/// - **Parameter Sanitization**: Uses InputValidator for comprehensive validation
-/// - **Bounds Checking**: Validates numeric parameters within reasonable ranges
-/// - **Chain Validation**: Verifies blockchain names against supported list
-/// - **Input Type Validation**: Strict type checking for all parameters
-/// - **DoS Protection**: Limits result sets and request complexity
-/// 
-/// ## API Endpoints:
-/// - `GET /stablecoins` - List all stablecoins with filtering and sorting
-/// - `GET /stablecoins/{symbol}` - Get stablecoin data by symbol
-/// - `GET /stablecoins/{id}` - Get stablecoin data by ID
-/// - `GET /stablecoins/chain/{chain}` - Get stablecoins by blockchain
-/// - `GET /stablecoins/analytics` - Get comprehensive market analytics
-/// - `GET /stablecoins/top` - Get top stablecoins by market cap
-/// - `GET /stablecoins/depegged` - Get stablecoins that have lost their peg
-
 import { Request, Response, NextFunction } from 'express';
 import { stablecoinService } from '../services/stablecoinService.js';
 import { ApiResponse, StablecoinAsset, StablecoinFilters, StablecoinAnalytics, ChainStablecoinResponse } from '../types/index.js';
@@ -34,17 +5,7 @@ import { AppError } from '../middleware/e/AppError.js';
 import { ErrorCode } from '../middleware/e/ErrorCode.js';
 import { InputValidator } from '../utils/inputValidator.js';
 
-/// ## StablecoinController Class
-/// 
-/// Main controller class handling all stablecoin-related API endpoints with
-/// comprehensive validation, security measures, and data transformation.
-/// 
-/// ### Features:
-/// - **Advanced Filtering**: Market cap, peg type, mechanism, blockchain filters
-/// - **Intelligent Sorting**: Multi-criteria sorting with validation
-/// - **Pagination Support**: Configurable limits with bounds checking
-/// - **Chain Analytics**: Blockchain-specific stablecoin metrics
-/// - **Risk Assessment**: Stability metrics and risk level analysis
+
 export class StablecoinController {
   
   /**
@@ -146,9 +107,8 @@ export class StablecoinController {
 
   /// ## Get All Stablecoins Endpoint
   /// 
-  /// Retrieves comprehensive stablecoin data with advanced filtering, sorting,
-  /// and pagination capabilities. Supports filtering by peg type, mechanism,
-  /// market cap, and blockchain network.
+  /// Retrieves comprehensive stablecoin data with blockchain filtering and sorting.
+  /// Streamlined endpoint focused on essential filtering capabilities.
   /// 
   /// **@param {Request} req** - Express request object with query parameters
   /// **@param {Response} res** - Express response object for API response
@@ -156,22 +116,15 @@ export class StablecoinController {
   /// **@returns {Promise<void>}** - Async function returning paginated stablecoin data
   /// 
   /// ### Supported Query Parameters:
-  /// - **pegType**: Filter by peg type ("peggedUSD", "peggedEUR", etc.)
-  /// - **mechanism**: Filter by peg mechanism ("fiat-backed", "crypto-backed", "algorithmic")
-  /// - **minMarketCap**: Filter by minimum market capitalization
-  /// - **chain**: Filter by blockchain network
-  /// - **sortBy**: Sort criteria ("id", "marketCap", "stability", "growth", "name")
-  /// - **sortOrder**: Sort direction ("asc" or "desc")
-  /// - **includeChainData**: Include detailed chain circulation data ("true"/"false")
+  /// - **chains**: Filter by blockchain networks (array of: ETH, Celo, DOT, BTC, SOL, AVAX, MATIC, BNB, ADA, LINK)
+  /// - **sortOrder**: Sort direction ("asc" or "desc", default: "asc")
   /// - **limit**: Result limit (1-100, default: 50)
-  /// - **offset**: Pagination offset (default: 0)
   /// 
   /// ### Validation Layers:
   /// 1. **Parameter Type Validation**: Ensures correct data types
-  /// 2. **Range Validation**: Market cap, limit, offset within bounds
-  /// 3. **Enum Validation**: Sort options and boolean flags
+  /// 2. **Chains Validation**: Validates against supported blockchain enums
+  /// 3. **Range Validation**: Limit within bounds
   /// 4. **Input Sanitization**: Prevents injection attacks
-  /// 5. **Business Logic Validation**: Reasonable parameter combinations
   /// 
   /// ### Response Structure:
   /// ```json
@@ -193,72 +146,51 @@ export class StablecoinController {
   async getStablecoins(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { 
-        pegType, 
-        mechanism, 
-        minMarketCap, 
-        chain, 
-        sortBy = 'id', 
+        chains,
         sortOrder = 'asc',
-        includeChainData = 'false',
-        limit = '50',
-        offset = '0'
+        limit = '50'
       } = req.query;
       
       /// VALIDATION LAYER 1: Core Parameter Validation
       /// Uses InputValidator for comprehensive security validation
-      const validatedSortBy = InputValidator.validateSortBy(sortBy as string);
       const validatedSortOrder = InputValidator.validateSortOrder(sortOrder as string);
-      const validatedIncludeChainData = InputValidator.validateBoolean(includeChainData as string);
       const validatedLimit = InputValidator.validateInteger(limit as string, 'limit', 1, 100);
-      const validatedOffset = InputValidator.validateInteger(offset as string, 'offset', 0);
       
-      /// VALIDATION LAYER 2: Optional Parameter Validation
-      /// Each optional parameter is validated only if provided
-      let validatedPegType: string | undefined;
-      if (pegType) {
-        validatedPegType = InputValidator.validatePegType(pegType as string);
-      }
-      
-      let validatedMechanism: string | undefined;
-      if (mechanism) {
-        validatedMechanism = InputValidator.validateMechanism(mechanism as string);
-      }
-      
-      let validatedMinMarketCap: number | undefined;
-      if (minMarketCap) {
-        validatedMinMarketCap = InputValidator.validatePositiveNumber(minMarketCap as string, 'minMarketCap');
-      }
-      
-      let validatedChain: string | undefined;
-      if (chain) {
-        validatedChain = InputValidator.sanitizeChainName(chain as string);
+      /// VALIDATION LAYER 2: Chains Parameter Validation
+      /// Validate chains array if provided
+      let validatedChains: string[] | undefined;
+      if (chains) {
+        // Handle both array and comma-separated string formats
+        const chainsArray = Array.isArray(chains) ? chains : [chains as string];
+        const validChainEnums = ['ETH', 'Celo', 'DOT', 'BTC', 'SOL', 'AVAX', 'MATIC', 'BNB', 'ADA', 'LINK'];
+        
+        validatedChains = chainsArray
+          .map(chain => String(chain).trim())
+          .filter(chain => validChainEnums.includes(chain));
+        
+        if (validatedChains.length === 0) {
+          throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 'Invalid chains parameter. Must be one of: ETH, Celo, DOT, BTC, SOL, AVAX, MATIC, BNB, ADA, LINK');
+        }
       }
 
       const filters: StablecoinFilters = {
-        pegType: validatedPegType,
-        mechanism: validatedMechanism,
-        minMarketCap: validatedMinMarketCap,
-        chain: validatedChain,
-        sortBy: validatedSortBy,
+        chain: validatedChains && validatedChains.length > 0 ? validatedChains[0] : undefined,
+        sortBy: 'id', // Fixed sort by ID
         sortOrder: validatedSortOrder,
-        includeChainData: validatedIncludeChainData,
         limit: validatedLimit,
-        offset: validatedOffset
+        offset: 0 // Fixed offset
       };
 
       const stablecoins = await stablecoinService.getStablecoins(filters);
 
-      /// DATA TRANSFORMATION: Conditionally include chain circulation data
-      /// Reduces response size when detailed chain data is not needed
-      const responseData = validatedIncludeChainData
-        ? stablecoins 
-        : stablecoins.map(({ chainCirculating, ...rest }) => rest);
+      /// DATA TRANSFORMATION: Always exclude chain circulation data for clean response
+      const responseData = stablecoins.map(({ chainCirculating, ...rest }) => rest);
 
       const response: ApiResponse<any[]> = {
         success: true,
         data: responseData,
         pagination: {
-          page: Math.floor(validatedOffset / validatedLimit) + 1,
+          page: 1,
           limit: validatedLimit,
           total: stablecoins.length
         },
@@ -422,9 +354,30 @@ export class StablecoinController {
       /// Extract chain parameter from URL path
       const { chain } = req.params;
       
-      /// VALIDATION: Chain name sanitization and validation
-      /// Prevents injection attacks and normalizes chain names
-      const validatedChain = InputValidator.sanitizeChainName(chain);
+      /// VALIDATION: Chain parameter validation
+      if (!chain || typeof chain !== 'string') {
+        throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 'Chain parameter is required');
+      }
+      
+      /// MULTI-CHAIN PARSING: Handle comma-separated chains like "ETH,AVAX" or "ETH, Celo"
+      const chainArray = chain.split(',').map(c => c.trim()).filter(c => c.length > 0);
+      if (chainArray.length === 0) {
+        throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 'At least one valid chain must be provided');
+      }
+      
+      /// CHAIN VALIDATION: Validate each chain against supported enums
+      const validChainEnums = ['ETH', 'Celo', 'DOT', 'BTC', 'SOL', 'AVAX', 'MATIC', 'BNB', 'ADA', 'LINK'];
+      const validatedChains = chainArray.filter(c => validChainEnums.includes(c.toUpperCase()));
+      
+      if (validatedChains.length === 0) {
+        throw AppError.newError400(ErrorCode.VALIDATION_ERROR, 
+          `Invalid chain(s). Supported chains: ${validChainEnums.join(', ')}`);
+      }
+      
+      /// For now, use the first validated chain to maintain existing service compatibility
+      /// TODO: Update service to handle multiple chains
+      const primaryChain = validatedChains[0];
+      const validatedChain = InputValidator.sanitizeChainName(primaryChain);
       
       const stablecoins = await stablecoinService.getStablecoinsByChain(validatedChain);
 
@@ -466,7 +419,7 @@ export class StablecoinController {
       }).sort((a, b) => b.circulation - a.circulation); /// Sort by chain circulation (largest first)
 
       const chainResponse: ChainStablecoinResponse = {
-        chain: chain,
+        chain: primaryChain, // Use the validated primary chain instead of raw input
         totalStablecoins: stablecoins.length,
         totalCirculation: totalCirculation,
         stablecoins: chainStablecoins
@@ -613,8 +566,8 @@ export class StablecoinController {
 
   /// ## Get Depegged Stablecoins Endpoint
   /// 
-  /// Retrieves stablecoins that have lost their peg below a specified stability
-  /// threshold, sorted by worst stability first for risk monitoring.
+  /// Retrieves stablecoins that have lost their peg (stability below threshold)
+  /// for risk monitoring and alert systems.
   /// 
   /// **@param {Request} req** - Express request object with query parameters
   /// **@param {Response} res** - Express response object for API response
@@ -622,52 +575,34 @@ export class StablecoinController {
   /// **@returns {Promise<void>}** - Async function returning depegged stablecoins
   /// 
   /// ### Supported Query Parameters:
-  /// - **threshold**: Stability threshold percentage (0-100, default: 99)
-  /// 
-  /// ### Response Features:
-  /// 1. **Risk Prioritization**: Sorted by stability (worst first)
-  /// 2. **Threshold Filtering**: Only includes stablecoins below threshold
-  /// 3. **Clean Response**: Removes chain data for faster processing
-  /// 4. **Monitoring Focus**: Optimized for risk assessment workflows
-  /// 
-  /// ### Use Cases:
-  /// - Risk monitoring dashboards
-  /// - Depegging alert systems
-  /// - Market stability analysis
-  /// - Portfolio risk assessment
-  /// 
-  /// ### Response Structure:
-  /// ```json
-  /// {
-  ///   "success": true,
-  ///   "data": [{
-  ///     "symbol": "USDD",
-  ///     "pegStability": 95.2,
-  ///     "riskLevel": "high",
-  ///     "marketCap": 500000000
-  ///   }]
-  /// }
-  /// ```
+  /// - **threshold**: Stability threshold percentage (0-100, default: 99.0)
+  /// - **limit**: Number of results to return (1-100, default: 20)
   /// 
   /// **@route** GET /api/v1/stablecoins/depegged
   async getDepeggedStablecoins(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      /// Extract threshold parameter with default value
-      const { threshold = '99' } = req.query;
+      /// Extract query parameters with defaults
+      const { threshold = '99.0', limit = '20' } = req.query;
       
-      /// VALIDATION: Threshold parameter validation
-      /// Ensures threshold is within reasonable bounds (0-100%)
+      /// VALIDATION: Threshold parameter validation (0-100%)
       const validatedThreshold = InputValidator.validateThreshold(threshold as string);
+      const validatedLimit = InputValidator.validateInteger(limit as string, 'limit', 1, 100);
 
-      const allStablecoins = await stablecoinService.getStablecoins({ limit: 1000 });
-      const depeggedStablecoins = allStablecoins.filter(s => s.pegStability < validatedThreshold);
+      const filters: StablecoinFilters = {
+        sortBy: 'id',
+        sortOrder: 'asc',
+        limit: validatedLimit,
+        offset: 0
+      };
 
-      /// RISK PRIORITIZATION: Sort by stability (worst stability first)
-      /// This ordering helps users identify the highest risk stablecoins immediately
-      depeggedStablecoins.sort((a, b) => a.pegStability - b.pegStability);
+      const allStablecoins = await stablecoinService.getStablecoins(filters);
+      
+      /// FILTER: Find stablecoins below stability threshold
+      const depeggedStablecoins = allStablecoins.filter(stablecoin => 
+        stablecoin.pegStability < validatedThreshold
+      ).sort((a, b) => a.pegStability - b.pegStability); // Worst stability first
 
-      /// DATA OPTIMIZATION: Remove detailed chain data for performance
-      /// Depegging monitoring focuses on stability metrics, not chain distribution
+      /// DATA TRANSFORMATION: Remove detailed chain data for clean response
       const responseData = depeggedStablecoins.map(({ chainCirculating, ...rest }) => rest);
 
       const response: ApiResponse<any[]> = {
@@ -675,7 +610,7 @@ export class StablecoinController {
         data: responseData,
         pagination: {
           page: 1,
-          limit: responseData.length,
+          limit: validatedLimit,
           total: responseData.length
         },
         timestamp: new Date().toISOString()
@@ -686,6 +621,7 @@ export class StablecoinController {
       next(error);
     }
   }
+
 }
 
 export const stablecoinController = new StablecoinController();

@@ -1,16 +1,3 @@
-/**
- * Market Intelligence Controller
- * 
- * Unified REST API controller managing all DeFi market intelligence operations including:
- * - Market overview with dashboard-ready insights
- * - Market dominance analysis with concentration metrics
- * - Trending protocols with growth-based rankings
- * - Market movers with comprehensive movement analysis
- * 
- * This controller implements enterprise-grade validation, caching, and intelligence
- * generation for optimal developer experience and performance.
- */
-
 import { Request, Response, NextFunction } from 'express';
 import { performance } from 'perf_hooks';
 import { 
@@ -20,10 +7,11 @@ import {
   TrendingProtocolsData,
   MarketMoversData,
   ChainEcosystemData,
-  ChainsOverviewData
 } from '../types/index.js';
 import { logger } from '../utils/logger.js';
-
+import { MarketIntelligenceService } from '../services/marketIntelligenceService.js';
+import { ValidationHelper } from '../utils/validationHelper.js';
+import { IntelligentCacheManager } from '../utils/intelligentCacheManager.js';
 /**
  * Market Intelligence Controller Class
  * 
@@ -32,14 +20,14 @@ import { logger } from '../utils/logger.js';
  */
 export class MarketIntelligenceController {
   
-  private marketService: any; // Will be injected
-  private validationHelper: any; // Will be injected
-  private cacheHelper: any; // Will be injected
+  private marketService: MarketIntelligenceService;
+  private validationHelper: ValidationHelper;
+  private cacheHelper: IntelligentCacheManager;
 
   constructor(
-    marketService: any,
-    validationHelper: any,
-    cacheHelper: any
+    marketService: MarketIntelligenceService,
+    validationHelper: ValidationHelper,
+    cacheHelper: IntelligentCacheManager
   ) {
     this.marketService = marketService;
     this.validationHelper = validationHelper;
@@ -69,11 +57,11 @@ export class MarketIntelligenceController {
       });
 
       // Validation Layer
-      const validatedQuery = await this.validationHelper.validateMarketOverviewQuery(req.query);
+      const validatedQuery = await ValidationHelper.validateMarketOverviewQuery(req.query);
       
       // Check cache first
       const cacheKey = this.cacheHelper.generateCacheKey('market_overview', validatedQuery);
-      let data = await this.cacheHelper.get(cacheKey);
+      let data = await this.cacheHelper.get<any>(cacheKey);
       
       if (!data) {
         // Fetch and process data
@@ -135,10 +123,10 @@ export class MarketIntelligenceController {
         ip: req.ip 
       });
 
-      const validatedQuery = await this.validationHelper.validateDominanceQuery(req.query);
+      const validatedQuery = await ValidationHelper.validateDominanceQuery(req.query);
       
       const cacheKey = this.cacheHelper.generateCacheKey('market_dominance', validatedQuery);
-      let data = await this.cacheHelper.get(cacheKey);
+      let data = await this.cacheHelper.get<any>(cacheKey);
       
       if (!data) {
         data = await this.marketService.getMarketDominance(validatedQuery);
@@ -202,10 +190,10 @@ export class MarketIntelligenceController {
         ip: req.ip 
       });
 
-      const validatedQuery = await this.validationHelper.validateTrendingQuery(req.query);
+      const validatedQuery = await ValidationHelper.validateTrendingQuery(req.query);
       
       const cacheKey = this.cacheHelper.generateCacheKey('market_trending', validatedQuery);
-      let data = await this.cacheHelper.get(cacheKey);
+      let data = await this.cacheHelper.get<any>(cacheKey);
       
       if (!data) {
         data = await this.marketService.getTrendingProtocols(validatedQuery);
@@ -267,10 +255,10 @@ export class MarketIntelligenceController {
         ip: req.ip 
       });
 
-      const validatedQuery = await this.validationHelper.validateMoversQuery(req.query);
+      const validatedQuery = await ValidationHelper.validateMoversQuery(req.query);
       
       const cacheKey = this.cacheHelper.generateCacheKey('market_movers', validatedQuery);
-      let data = await this.cacheHelper.get(cacheKey);
+      let data = await this.cacheHelper.get<any>(cacheKey);
       
       if (!data) {
         data = await this.marketService.getMarketMovers(validatedQuery);
@@ -338,14 +326,14 @@ export class MarketIntelligenceController {
       });
 
       // Validate and extract parameters
-      const validatedQuery = await this.validationHelper.validateChainEcosystemQuery({
+      const validatedQuery = await ValidationHelper.validateChainEcosystemQuery({
         ...req.query,
         chain: req.params.chain,
       });
 
       // Check cache
       const cacheKey = this.cacheHelper.generateCacheKey('chain_ecosystem', validatedQuery);
-      let data = await this.cacheHelper.get(cacheKey);
+      let data = await this.cacheHelper.get<any>(cacheKey);
 
       if (!data) {
         data = await this.marketService.getChainEcosystem(validatedQuery);
@@ -408,10 +396,10 @@ export class MarketIntelligenceController {
         ip: req.ip,
       });
 
-      const validatedQuery = await this.validationHelper.validateChainsOverviewQuery(req.query);
+      const validatedQuery = await ValidationHelper.validateChainsOverviewQuery(req.query);
 
       const cacheKey = this.cacheHelper.generateCacheKey('chains_overview', validatedQuery);
-      let data = await this.cacheHelper.get(cacheKey);
+      let data = await this.cacheHelper.get<any>(cacheKey);
 
       if (!data) {
         data = await this.marketService.getChainsOverview(validatedQuery);
@@ -475,9 +463,9 @@ export class MarketIntelligenceController {
  * Factory function to create controller instance with dependencies
  */
 export function createMarketIntelligenceController(
-  marketService: any,
-  validationHelper: any,
-  cacheHelper: any
+  marketService: MarketIntelligenceService,
+  validationHelper: ValidationHelper,
+  cacheHelper: IntelligentCacheManager
 ): MarketIntelligenceController {
   const controller = new MarketIntelligenceController(
     marketService,
