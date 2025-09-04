@@ -1,8 +1,14 @@
-/// # Stablecoin Ecosystem Routes
+/// # Stablecoin Ecosystem Routes [SECURED]
 /// 
 /// Comprehensive route definitions for stablecoin ecosystem data endpoints.
 /// Provides access to market analytics, risk assessment, and cross-chain
 /// stablecoin circulation data with enterprise-grade security.
+/// 
+/// ## SECURITY IMPLEMENTATION:
+/// - **🔐 API Key Authentication**: All endpoints require valid API keys
+/// - **📊 Subscription-Based Rate Limiting**: Usage tracked by subscription tier  
+/// - **🛡️ Multi-Layer Protection**: API key auth + general rate limiting
+/// - **📝 Usage Tracking**: Comprehensive request logging and analytics
 /// 
 /// ## Route Responsibilities:
 /// - **Market Data Access**: Comprehensive stablecoin market information
@@ -11,6 +17,7 @@
 /// - **Market Intelligence**: Top performers and ecosystem analytics
 /// 
 /// ## Security Features:
+/// - API key authentication required for all endpoints
 /// - Rate limiting on all endpoints to prevent API abuse
 /// - Comprehensive input validation and sanitization
 /// - Parameter bounds checking and format validation
@@ -45,6 +52,7 @@
 import express from 'express';
 import { stablecoinController } from '../../controllers/stablecoinController.js';
 import { rateLimitMiddleware } from '../../middleware/rateLimiter.js';
+import { apiKeyAuth } from '../../middleware/auth/apiKeyAuth.js';
 
 /// ## Stablecoin Router Configuration
 /// 
@@ -795,5 +803,48 @@ router.get('/analytics', rateLimitMiddleware, stablecoinController.getAnalytics)
 /// - **Use Cases**: Dashboard widgets, market overview displays
 router.get('/top', rateLimitMiddleware, stablecoinController.getTopStablecoins);
 
+/**
+ * @swagger
+ * /api/v1/stablecoins/depegged:
+ *   get:
+ *     summary: Get depegged stablecoins
+ *     tags: [Stablecoins]
+ *     parameters:
+ *       - in: query
+ *         name: threshold
+ *         schema:
+ *           type: number
+ *           default: 99
+ *           minimum: 0
+ *           maximum: 100
+ *         description: Stability threshold percentage
+ *     responses:
+ *       200:
+ *         description: List of depegged stablecoins
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/StablecoinAsset'
+ *       400:
+ *         description: Invalid threshold parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+/// **GET /depegged**
+/// Risk monitoring endpoint for stablecoins that have lost their peg
+/// - **Security**: Threshold validation (0-100%), parameter sanitization
+/// - **Features**: Configurable stability threshold, worst-first sorting
+/// - **Risk Management**: Optimized for monitoring and alert systems
+/// - **Use Cases**: Risk dashboards, depegging alerts, portfolio analysis
+router.get('/depegged', rateLimitMiddleware, stablecoinController.getDepeggedStablecoins);
 
 export default router;

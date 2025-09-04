@@ -53,16 +53,41 @@ We aggregate data from **15+ top-tier DeFi protocols** including:
         url: "https://opensource.org/licenses/MIT"
       }
     },
-    servers: [
-      {
-        url: "http://localhost:3000",
-        description: "Development server"
-      },
-      {
-        url: "https://api.liquidsync.dev",
-        description: "Production server"
+    servers: (() => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const hasRailwayEnv = Boolean(process.env.RAILWAY_ENVIRONMENT);
+      const port = process.env.PORT || 3000;
+      if (isProduction) {
+        // Production: Only Railway server
+        console.log(`  Production Mode: Using Railway server only`);
+        return [
+          {
+            url: `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`,
+            description: 'Production server'
+          }
+        ];
+      } else {
+        // Development: Provide both localhost (primary) and Railway (secondary) options
+        console.log(`  Development Mode: Providing localhost (primary) and Railway (fallback) servers`);
+        const servers = [
+          {
+            url: `http://localhost:${port}`,
+            description: 'Local development server (primary)'
+          }
+        ];
+        
+        // Add Railway server as secondary option for development if available
+        if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+          servers.push({
+            url: `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`,
+            description: 'Railway staging server (secondary)'
+          });
+        }
+        
+        console.log(`  Available servers:`, servers.map(s => `${s.url} (${s.description})`).join(', '));
+        return servers;
       }
-    ],
+    })(),
     tags: [
       {
         name: "Bifrost Protocol",

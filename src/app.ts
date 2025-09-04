@@ -38,6 +38,8 @@ app.use(helmet({
         "https://unpkg.com",
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
+        "https://*.railway.app",
+        "https://*.up.railway.app",
         "wss:",
         "ws:"
       ],
@@ -50,12 +52,26 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration
+// CORS configuration - Railway deployment compatible 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? false : ['http://localhost:3000', 'http://127.0.0.1:3000'],
-  credentials: false,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  origin: process.env.NODE_ENV === 'production' 
+    ? [
+        /\.railway\.app$/,
+        /\.up\.railway\.app$/,
+        /^https:\/\/.*\.railway\.app$/,
+        'https://api.liquidsync.dev',
+        'https://app.liquidsync.dev'
+      ]
+    : [
+        'http://localhost:3000', 
+        'http://127.0.0.1:3000',
+        'http://localhost:8080',
+        'http://localhost:5173'
+      ],
+  credentials: true, // Enable credentials for cookies
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cookie'],
+  optionsSuccessStatus: 200
 }));
 
 // Compression
@@ -73,9 +89,19 @@ if (config.nodeEnv === 'development') {
 app.get("/openapi.json", (_, res) => {
   try {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=300");
+    
+    // Cache control: In development, disable caching to prevent stale server URLs
+    // In production, allow 5-minute caching for performance
+    const cacheControl = process.env.NODE_ENV === 'production' 
+      ? "public, max-age=300" 
+      : "no-cache, no-store, must-revalidate, max-age=0";
+    
+    res.setHeader("Cache-Control", cacheControl);
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("X-Content-Type-Options", "nosniff");
+    
+    // Add timestamp header to help with debugging and cache busting
+    res.setHeader("X-OpenAPI-Generated", new Date().toISOString());
     
     // Clean JSON serialization
     res.status(200).json(openapiSpecification);
@@ -143,7 +169,13 @@ app.use('/docs', apiReference({
     }
   `
 }));
-
+  // src/routes/v1/index.ts
+app.get('/health', (_, res) => {
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString()
+    });
+  });
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

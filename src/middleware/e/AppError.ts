@@ -102,4 +102,33 @@ export class AppError {
   ): AppError {
     return new AppError(msg, StatusCodes.BAD_GATEWAY, errCode, root);
   }
+
+  // Authentication specific methods
+  static unauthorized(msg: string): AppError {
+    return new AppError(msg, StatusCodes.UNAUTHORIZED);
+  }
+
+  static forbidden(msg: string): AppError {
+    return new AppError(msg, StatusCodes.FORBIDDEN);
+  }
+
+  static badRequest(msg: string): AppError {
+    return new AppError(msg, StatusCodes.BAD_REQUEST);
+  }
+
+  static notFound(msg: string): AppError {
+    return new AppError(msg, StatusCodes.NOT_FOUND);
+  }
+
+  static rateLimited(msg: string): AppError {
+    return new AppError(msg, StatusCodes.TOO_MANY_REQUESTS);
+  }
+
+  static internalError(msg: string): AppError {
+    return new AppError(msg, StatusCodes.INTERNAL_SERVER_ERROR);
+  }
+
+  static paymentRequired(msg: string): AppError {
+    return new AppError(msg, StatusCodes.PAYMENT_REQUIRED);
+  }
 }

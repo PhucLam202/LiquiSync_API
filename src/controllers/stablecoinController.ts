@@ -174,7 +174,7 @@ export class StablecoinController {
       }
 
       const filters: StablecoinFilters = {
-        chains: validatedChains,
+        chain: validatedChains && validatedChains.length > 0 ? validatedChains[0] : undefined,
         sortBy: 'id', // Fixed sort by ID
         sortOrder: validatedSortOrder,
         limit: validatedLimit,
@@ -433,12 +433,6 @@ export class StablecoinController {
           limit: stablecoins.length,
           total: stablecoins.length
         },
-        metadata: {
-          requestedChains: chainArray,
-          validatedChains: validatedChains,
-          processedChain: primaryChain,
-          multiChainSupport: validatedChains.length > 1 ? 'partial' : 'full'
-        },
         timestamp: new Date().toISOString()
       };
 
@@ -552,6 +546,64 @@ export class StablecoinController {
       /// DATA OPTIMIZATION: Remove detailed chain data for performance
       /// Top stablecoins endpoint focuses on ranking, not detailed chain analysis
       const responseData = topStablecoins.map(({ chainCirculating, ...rest }) => rest);
+
+      const response: ApiResponse<any[]> = {
+        success: true,
+        data: responseData,
+        pagination: {
+          page: 1,
+          limit: validatedLimit,
+          total: responseData.length
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /// ## Get Depegged Stablecoins Endpoint
+  /// 
+  /// Retrieves stablecoins that have lost their peg (stability below threshold)
+  /// for risk monitoring and alert systems.
+  /// 
+  /// **@param {Request} req** - Express request object with query parameters
+  /// **@param {Response} res** - Express response object for API response
+  /// **@param {NextFunction} next** - Express next function for error handling
+  /// **@returns {Promise<void>}** - Async function returning depegged stablecoins
+  /// 
+  /// ### Supported Query Parameters:
+  /// - **threshold**: Stability threshold percentage (0-100, default: 99.0)
+  /// - **limit**: Number of results to return (1-100, default: 20)
+  /// 
+  /// **@route** GET /api/v1/stablecoins/depegged
+  async getDepeggedStablecoins(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      /// Extract query parameters with defaults
+      const { threshold = '99.0', limit = '20' } = req.query;
+      
+      /// VALIDATION: Threshold parameter validation (0-100%)
+      const validatedThreshold = InputValidator.validateThreshold(threshold as string);
+      const validatedLimit = InputValidator.validateInteger(limit as string, 'limit', 1, 100);
+
+      const filters: StablecoinFilters = {
+        sortBy: 'id',
+        sortOrder: 'asc',
+        limit: validatedLimit,
+        offset: 0
+      };
+
+      const allStablecoins = await stablecoinService.getStablecoins(filters);
+      
+      /// FILTER: Find stablecoins below stability threshold
+      const depeggedStablecoins = allStablecoins.filter(stablecoin => 
+        stablecoin.pegStability < validatedThreshold
+      ).sort((a, b) => a.pegStability - b.pegStability); // Worst stability first
+
+      /// DATA TRANSFORMATION: Remove detailed chain data for clean response
+      const responseData = depeggedStablecoins.map(({ chainCirculating, ...rest }) => rest);
 
       const response: ApiResponse<any[]> = {
         success: true,
