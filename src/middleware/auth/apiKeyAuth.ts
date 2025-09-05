@@ -102,7 +102,7 @@ export const apiKeyAuth = async (
 
     // Extract permissions from role and API key
     const rolePermissions = apiKeyRecord.user.role.rolePermissions
-      .map(rp => rp.permission.name);
+      .map((rp: any) => rp.permission.name);
     const allPermissions = [...new Set([
       ...rolePermissions,
       ...apiKeyRecord.permissions

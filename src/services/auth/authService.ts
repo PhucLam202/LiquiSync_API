@@ -42,7 +42,7 @@ export class AuthService {
     }
 
     // Create user in transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Create default subscription first
       const subscription = await tx.subscription.create({
         data: {
@@ -539,7 +539,7 @@ export class AuthService {
    * Create new user for Web3 authentication
    */
   private static async createWeb3User(walletAddress: string): Promise<any> {
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       // Create default subscription
       const subscription = await tx.subscription.create({
         data: {

@@ -87,7 +87,7 @@ export const jwtAuth = async (
 
     // Extract permissions
     const permissions = user.role.rolePermissions
-      .map(rp => rp.permission.name);
+      .map((rp: any) => rp.permission.name);
 
     // Attach user data to request
     req.user = user;

@@ -44,7 +44,7 @@ export class UserService {
       throw AppError.notFound('User not found');
     }
 
-    const permissions = userData.role.rolePermissions.map(rp => rp.permission.name);
+    const permissions = userData.role.rolePermissions.map((rp: any) => rp.permission.name);
 
     return {
       id: userData.id,
@@ -61,7 +61,7 @@ export class UserService {
         resetDate: userData.subscription.resetDate,
         status: userData.subscription.status
       },
-      apiKeys: userData.apiKeys.map(key => ({
+      apiKeys: userData.apiKeys.map((key: any) => ({
         id: key.id,
         keyPrefix: key.keyPrefix,
         name: key.name,
@@ -173,7 +173,7 @@ export class UserService {
     }
 
     const totalRequests = user.usageLogs.length;
-    const successfulRequests = user.usageLogs.filter(log => log.statusCode >= 200 && log.statusCode < 300).length;
+    const successfulRequests = user.usageLogs.filter((log: any) => log.statusCode >= 200 && log.statusCode < 300).length;
     const failedRequests = totalRequests - successfulRequests;
 
     return {
@@ -190,7 +190,7 @@ export class UserService {
         failedRequests,
         successRate: totalRequests > 0 ? Math.round((successfulRequests / totalRequests) * 100) : 0
       },
-      recentActivity: user.usageLogs.map(log => ({
+      recentActivity: user.usageLogs.map((log: any) => ({
         endpoint: log.endpoint,
         method: log.method,
         statusCode: log.statusCode,
@@ -214,7 +214,7 @@ export class UserService {
       }
     });
 
-    return apiKeys.map(key => ({
+    return apiKeys.map((key: any) => ({
       id: key.id,
       name: key.name,
       keyPrefix: key.keyPrefix,
