@@ -1,9 +1,8 @@
 // File: src/services/user/userService.ts
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/e/AppError.js';
 import { ValidationUtils } from '../../utils/helpers/validators.js';
+import { prisma } from '../../config/database.js';
 
-const prisma = new PrismaClient();
 
 export class UserService {
   /**

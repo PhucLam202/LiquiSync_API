@@ -1,10 +1,9 @@
 // File: src/services/apiKey/apiKeyService.ts
 import { createHash, randomBytes } from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/e/AppError.js';
 import { SECURITY_CONFIG } from '../../middleware/security/securityConfig.js';
+import { prisma } from '../../config/database.js';
 
-const prisma = new PrismaClient();
 
 export class ApiKeyService {
   static async createApiKey(userId: string, keyData: CreateApiKeyDto): Promise<ApiKeyResult> {

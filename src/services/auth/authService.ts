@@ -2,7 +2,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
-import { PrismaClient, UserStatus } from "@prisma/client";
+import { UserStatus } from "@prisma/client";
 import { AppError } from "../../middleware/e/AppError.js";
 import { SECURITY_CONFIG } from "../../middleware/security/securityConfig.js";
 import { OtpService } from "../otp/otpService.js";
@@ -10,6 +10,7 @@ import { OTPType } from "../../types/otpTypes.js";
 import { EmailService } from "../email/emailService.js";
 import { PasswordUtils } from "../../utils/helpers/passwordUtils.js";
 import { ApiKeyService } from "../apiKey/apiKeyService.js";
+import { prisma } from "../../config/database.js";
 import {
   USER_STATUS_CONSTANTS,
   getUserStatusMessage,
@@ -19,8 +20,6 @@ import {
   LoginResult,
   VerificationResult,
 } from "../../types/authTypes.js";
-
-const prisma = new PrismaClient();
 
 export class AuthService {
   /**

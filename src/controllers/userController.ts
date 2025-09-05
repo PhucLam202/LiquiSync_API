@@ -3,9 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UserService } from '../services/user/userService.js';
 import { AppError } from '../middleware/e/AppError.js';
 import { ValidationUtils } from '../utils/helpers/validators.js';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/database.js';
 
 export class UserController {
   /**

@@ -1,12 +1,11 @@
 // File: src/middleware/auth/jwtAuthWithAutoRefresh.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../e/AppError.js';
 import { SECURITY_CONFIG } from '../security/securityConfig.js';
 import { AuthService } from '../../services/auth/authService.js';
+import { prisma } from '../../config/database.js';
 
-const prisma = new PrismaClient();
 
 interface JwtPayload {
   id: string;

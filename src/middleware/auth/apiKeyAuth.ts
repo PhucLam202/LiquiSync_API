@@ -1,11 +1,10 @@
 // File: src/middleware/auth/apiKeyAuth.ts
 import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../e/AppError.js';
 import { SECURITY_CONFIG } from '../security/securityConfig.js';
+import { prisma } from '../../config/database.js';
 
-const prisma = new PrismaClient();
 
 interface AuthenticatedRequest extends Request {
   user?: any;
