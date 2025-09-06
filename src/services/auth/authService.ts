@@ -465,11 +465,16 @@ export class AuthService {
       // Normalize wallet address (lowercase)
       const normalizedAddress = walletAddress.toLowerCase();
 
+      // Check for wallet address uniqueness (since DB constraint is removed)
+      const existingUser = await prisma.user.findFirst({
+        where: { walletAddress: normalizedAddress },
+      });
+
       // Find existing user by wallet address
-      let user = await prisma.user.findFirst({
+      let user = existingUser ? await prisma.user.findFirst({
         where: { walletAddress: normalizedAddress },
         include: { role: true, subscription: true },
-      });
+      }) : null;
 
       // If user doesn't exist, create new user
       if (!user) {
@@ -595,6 +600,18 @@ export class AuthService {
 
       if (existingEmailUser && existingEmailUser.walletAddress !== normalizedAddress) {
         throw AppError.badRequest("Email is already associated with another account");
+      }
+
+      // Check if wallet address is already used by another user (manual validation)
+      const existingWalletUser = await prisma.user.findFirst({
+        where: { 
+          walletAddress: normalizedAddress,
+          id: { not: existingEmailUser?.id || 'non-existent' }
+        },
+      });
+
+      if (existingWalletUser) {
+        throw AppError.badRequest("Wallet address is already associated with another account");
       }
 
       // Find Web3 user
