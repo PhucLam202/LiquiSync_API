@@ -259,7 +259,7 @@ export class AuthService {
       refreshToken,
       user: {
         id: user.id,
-        email: user.email,
+        email: user.email?.includes('@placeholder.local') ? null : user.email, // Hide placeholder emails
         fullName: user.fullName,
       },
     };
@@ -518,7 +518,7 @@ export class AuthService {
         refreshToken,
         user: {
           id: user.id,
-          email: user.email,
+          email: user.email?.includes('@placeholder.local') ? null : user.email, // Hide placeholder emails
           fullName: user.fullName,
           walletAddress: user.walletAddress,
           authType: user.authType,
@@ -563,8 +563,12 @@ export class AuthService {
       }
 
       // Create user with Web3 auth type
+      // Generate unique placeholder email for Web3 users to avoid unique constraint issues
+      const placeholderEmail = `web3-${walletAddress.slice(-8)}@placeholder.local`;
+      
       const newUser = await tx.user.create({
         data: {
+          email: placeholderEmail, // Temporary unique placeholder to satisfy constraint
           walletAddress,
           authType: "WEB3",
           subscriptionId: subscription.id,
@@ -776,6 +780,139 @@ export class AuthService {
       lastLoginAt: updatedUser.lastLoginAt
     };
   }
+
+  // ========== IMPROVED ACCOUNT LINKING METHODS ==========
+
+  /**
+   * Find user by email address
+   */
+  static async findUserByEmail(email: string): Promise<any | null> {
+    try {
+      const user = await prisma.user.findFirst({
+        where: { 
+          email: email.toLowerCase(),
+          status: { not: 'DELETED' }, 
+          NOT: {
+            email: { contains: '@placeholder.local' } // Exclude Web3 placeholder emails
+          }
+        },
+        include: {
+          subscription: true,
+          role: true
+        }
+      });
+      
+      return user;
+    } catch (error) {
+      console.error('Error finding user by email:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Find user by wallet address
+   */
+  static async findUserByWallet(walletAddress: string): Promise<any | null> {
+    try {
+      const user = await prisma.user.findFirst({
+        where: { 
+          walletAddress: walletAddress.toLowerCase(),
+          status: { not: 'DELETED' }
+        },
+        include: {
+          subscription: true,
+          role: true
+        }
+      });
+      
+      return user;
+    } catch (error) {
+      console.error('Error finding user by wallet:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Link wallet address to existing email user
+   */
+  static async linkWalletToEmailUser(email: string, walletAddress: string): Promise<any> {
+    try {
+      // Update email user with wallet address
+      const updatedUser = await prisma.user.update({
+        where: { email: email.toLowerCase() },
+        data: { 
+          walletAddress: walletAddress.toLowerCase(),
+          authType: 'HYBRID', // Both email and Web3
+          updatedAt: new Date()
+        },
+        include: {
+          subscription: true,
+          role: true
+        }
+      });
+
+      // Generate tokens
+      const accessToken = this.generateAccessToken(updatedUser);
+      const refreshToken = await this.generateRefreshToken(updatedUser.id);
+
+      return {
+        user: updatedUser,
+        accessToken,
+        refreshToken
+      };
+    } catch (error) {
+      console.error('Error linking wallet to email user:', error);
+      throw AppError.internalError('Failed to link wallet to email account');
+    }
+  }
+
+  /**
+   * Link email to existing wallet user
+   */
+  static async linkEmailToWalletUser(email: string, walletAddress: string): Promise<any> {
+    try {
+      // Find the wallet user first
+      const walletUser = await prisma.user.findFirst({
+        where: { walletAddress: walletAddress.toLowerCase() },
+        include: {
+          subscription: true,
+          role: true
+        }
+      });
+
+      if (!walletUser) {
+        throw AppError.badRequest('Web3 user not found');
+      }
+
+      // Update wallet user with email
+      const updatedUser = await prisma.user.update({
+        where: { id: walletUser.id },
+        data: { 
+          email: email.toLowerCase(),
+          authType: 'HYBRID', // Both email and Web3
+          updatedAt: new Date()
+        },
+        include: {
+          subscription: true,
+          role: true
+        }
+      });
+
+      // Generate tokens
+      const accessToken = this.generateAccessToken(updatedUser);
+      const refreshToken = await this.generateRefreshToken(updatedUser.id);
+
+      return {
+        user: updatedUser,
+        accessToken,
+        refreshToken
+      };
+    } catch (error) {
+      console.error('Error linking email to wallet user:', error);
+      throw AppError.internalError('Failed to link email to Web3 account');
+    }
+  }
+
 }
 
 // Interface definitions moved to authTypes.ts
