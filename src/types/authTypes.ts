@@ -78,7 +78,39 @@ export const isEmailVerified = (status: UserStatus): boolean => {
 };
 
 /**
- * Auth-related interfaces
+ * Base Response Interfaces
+ */
+export interface BaseApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  timestamp?: string;
+}
+
+export interface ErrorApiResponse {
+  success: false;
+  data: {
+    message: string;
+    details?: string;
+  };
+  msg: string;
+  code: number;
+}
+
+export interface ValidationError {
+  field: string;
+  message: string;
+  value?: any;
+}
+
+export interface PasswordValidationResult {
+  isValid: boolean;
+  errors: string[];
+  score?: number; // Password strength score 0-100
+}
+
+/**
+ * Auth DTOs (Data Transfer Objects)
  */
 export interface RegisterDto {
   email: string;    
@@ -86,28 +118,102 @@ export interface RegisterDto {
   fullName: string;
 }
 
+export interface LoginDto {
+  email: string;
+  password: string;
+}
+
+export interface Web3LoginDto {
+  walletAddress: string;
+}
+
+export interface LinkAccountDto {
+  email: string;
+  walletAddress: string;
+}
+
+export interface PasswordResetRequestDto {
+  email: string;
+}
+
+export interface PasswordResetDto {
+  email: string;
+  otp: string;
+  newPassword: string;
+}
+
+export interface OtpVerificationDto {
+  email: string;
+  otp: string;
+}
+
+/**
+ * Auth Result Interfaces
+ */
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  fullName: string | null;
+  walletAddress?: string | null;
+  authType?: string;
+  isEmailVerified?: boolean;
+  status?: UserStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApiKeyData {
+  key: string;
+  keyPrefix: string;
+  name: string;
+  permissions: string[];
+}
+
 export interface LoginResult {
   accessToken: string;
   refreshToken: string;
-  user: {
-    id: string;
-    email: string | null;
-    fullName: string | null;
-    walletAddress?: string | null;
-    authType?: string;
-  };
-  apiKey?: {
-    key: string;
-    keyPrefix: string;
-    name: string;
-    permissions: string[];
-  } | null;
+  user: AuthUser;
+  apiKey?: ApiKeyData | null;
 }
 
 export interface VerificationResult {
   success: boolean;
   message: string;
 }
+
+export interface RefreshTokenResult {
+  accessToken: string;
+  refreshToken: string;
+}
+
+/**
+ * Auth Response Types
+ */
+export interface LoginResponse extends BaseApiResponse<{
+  accessToken: string;
+  user: AuthUser;
+}> {}
+
+export interface RegisterResponse extends BaseApiResponse<{
+  user: AuthUser;
+}> {}
+
+export interface RefreshTokenResponse extends BaseApiResponse<{
+  accessToken: string;
+}> {}
+
+export interface LogoutResponse extends BaseApiResponse<{}> {}
+
+export interface PasswordResetResponse extends BaseApiResponse<{}> {}
+
+export interface EmailVerificationResponse extends BaseApiResponse<{}> {}
+
+export interface Web3LoginResponse extends BaseApiResponse<{
+  accessToken: string;
+  user: AuthUser;
+}> {}
+
+export interface UserProfileResponse extends BaseApiResponse<AuthUser> {}
 
 /**
  * User Status Flow Constants

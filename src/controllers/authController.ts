@@ -5,6 +5,7 @@ import { AuthService } from "../services/auth/authService.js";
 // import { OTPType } from '../services/otp/otpTypes.js';
 // import { PreAuthSessionService } from '../services/auth/preAuthSessionService.js'; // Not used in simplified flow
 import { AppError } from "../middleware/e/AppError.js";
+import { ErrorCode } from "../middleware/e/ErrorCode.js";
 import {
   ValidationUtils,
   ValidationMiddleware,
@@ -25,12 +26,12 @@ export class AuthController {
 
       // Validate required fields
       if (!email) {
-        throw AppError.badRequest("Email is required");
+        throw AppError.newError400(ErrorCode.VALIDATION_EMAIL_REQUIRED, "Email is required");
       }
 
       // Validate email format
       if (!ValidationUtils.isValidEmail(email)) {
-        throw AppError.badRequest("Invalid email format");
+        throw AppError.newError400(ErrorCode.VALIDATION_EMAIL_INVALID, "Invalid email format");
       }
 
       const sanitizedEmail = ValidationUtils.sanitizeInput(email.toLowerCase());
@@ -348,8 +349,10 @@ export class AuthController {
         throw AppError.badRequest("Invalid email format");
       }
 
-      // TODO: Implement password reset request
-      // This would generate an OTP and send it via email
+      const sanitizedEmail = ValidationUtils.sanitizeInput(email.toLowerCase());
+
+      // Request password reset
+      await AuthService.requestPasswordReset(sanitizedEmail);
 
       res.status(200).json({
         success: true,
@@ -388,19 +391,25 @@ export class AuthController {
         throw AppError.badRequest("Invalid email format");
       }
 
+      // Validate OTP format
+      if (!/^\d{6}$/.test(otp)) {
+        throw AppError.badRequest("OTP must be a 6-digit number");
+      }
+
       // Validate new password
       const passwordValidation = ValidationUtils.validatePassword(newPassword);
       if (!passwordValidation.isValid) {
         throw AppError.badRequest(passwordValidation.errors.join(", "));
       }
 
-      // TODO: Implement password reset
-      // This would verify the OTP and update the user's password
-      // Temporary: Use otp variable to suppress TS warning
-      console.log(
-        "OTP to be implemented:",
-        otp.length > 0 ? "provided" : "missing"
-      );
+      const sanitizedData = {
+        email: ValidationUtils.sanitizeInput(email.toLowerCase()),
+        otp: ValidationUtils.sanitizeInput(otp),
+        newPassword: newPassword, // Don't sanitize password
+      };
+
+      // Reset password
+      await AuthService.resetPassword(sanitizedData.email, sanitizedData.otp, sanitizedData.newPassword);
 
       res.status(200).json({
         success: true,
