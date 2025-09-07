@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import { UserStatus } from "@prisma/client";
 import { AppError } from "../../middleware/e/AppError.js";
+import { ErrorCode } from "../../middleware/e/ErrorCode.js";
 import { SECURITY_CONFIG } from "../../middleware/security/securityConfig.js";
 import { OtpService } from "../otp/otpService.js";
 import { OTPType } from "../../types/otpTypes.js";
@@ -11,6 +12,7 @@ import { EmailService } from "../email/emailService.js";
 import { PasswordUtils } from "../../utils/helpers/passwordUtils.js";
 import { ApiKeyService } from "../apiKey/apiKeyService.js";
 import { prisma } from "../../config/database.js";
+import { logger } from "../../utils/logger.js";
 import {
   USER_STATUS_CONSTANTS,
   getUserStatusMessage,
@@ -40,40 +42,63 @@ export class AuthService {
       }
     }
 
-    // Create user in transaction
-    await prisma.$transaction(async (tx: any) => {
-      // Create default subscription first
-      const subscription = await tx.subscription.create({
-        data: {
-          planType: "FREE",
-          monthlyLimit: 20,
-          resetDate: this.getNextResetDate(),
-        },
-      });
+    // Create user in transaction with comprehensive error handling
+    try {
+      await prisma.$transaction(async (tx: any) => {
+        // Create default subscription first
+        const subscription = await tx.subscription.create({
+          data: {
+            planType: "FREE",
+            monthlyLimit: 20,
+            resetDate: this.getNextResetDate(),
+          },
+        });
 
-      // Get default user role
-      const userRole = await tx.role.findUnique({
-        where: { name: "USER" },
-      });
+        // Get default user role
+        const userRole = await tx.role.findUnique({
+          where: { name: "USER" },
+        });
 
-      if (!userRole) {
-        throw AppError.internalError("Default user role not found");
+        if (!userRole) {
+          throw AppError.internalError("Default user role not found");
+        }
+
+        // Create user with await_verify_email status
+        await tx.user.create({
+          data: {
+            email: email.toLowerCase(),
+            passwordHash: null, // No password yet
+            fullName: null, // No fullName yet
+            subscriptionId: subscription.id,
+            roleId: userRole.id,
+            status: USER_STATUS_CONSTANTS.PENDING_VERIFICATION,
+            isEmailVerified: false,
+            isActive: false,
+          },
+        });
+      }, {
+        timeout: 10000, // 10 second timeout
+        maxWait: 5000, // Wait up to 5 seconds to acquire connection
+      });
+    } catch (error) {
+      logger.error('Transaction failed during user creation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        email: email.toLowerCase()
+      });
+      
+      if (error instanceof AppError) {
+        throw error;
       }
-
-      // Create user with await_verify_email status
-      await tx.user.create({
-        data: {
-          email: email.toLowerCase(),
-          passwordHash: null, // No password yet
-          fullName: null, // No fullName yet
-          subscriptionId: subscription.id,
-          roleId: userRole.id,
-          status: USER_STATUS_CONSTANTS.PENDING_VERIFICATION,
-          isEmailVerified: false,
-          isActive: false,
-        },
-      });
-    });
+      
+      // Handle specific Prisma errors
+      if ((error as any)?.code === 'P2002') { // Unique constraint violation
+        throw AppError.badRequest('Email already exists in system');
+      } else if ((error as any)?.code === 'P2025') { // Record not found
+        throw AppError.internalError('Required system data not found');
+      } else {
+        throw AppError.internalError('Failed to create user account');
+      }
+    }
 
     // Send OTP
     await OtpService.generateOtp(email, OTPType.SIGNUP_VERIFICATION);
@@ -171,7 +196,7 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
       });
     } catch (error) {
-      console.error("Failed to create default API key:", error);
+      logger.error('Failed to create default API key during registration', { error: error instanceof Error ? error.message : 'Unknown error', userId: updatedUser.id });
       // Don't fail the registration if API key creation fails
     }
 
@@ -179,7 +204,7 @@ export class AuthService {
     try {
       await EmailService.sendWelcomeEmail(email, fullName);
     } catch (error) {
-      console.error("Failed to send welcome email:", error);
+      logger.error('Failed to send welcome email during registration', { error: error instanceof Error ? error.message : 'Unknown error', email: email });
       // Don't fail the registration if email fails
     }
 
@@ -206,43 +231,71 @@ export class AuthService {
       include: { role: true, subscription: true },
     });
 
-    if (!user || !user.passwordHash) {
-      throw AppError.unauthorized("Invalid credentials");
+    // Check if user exists
+    if (!user) {
+      throw AppError.newError401(ErrorCode.LOGIN_EMAIL_NOT_FOUND, "User not found with provided email address");
+    }
+
+    // Check if user has password hash (for email-based auth)
+    if (!user.passwordHash) {
+      throw AppError.newError401(ErrorCode.LOGIN_EMAIL_NOT_FOUND, "Account exists but no password set. Please complete registration or use Web3 login.");
     }
 
     // Validate password - support both Argon2id and bcrypt
     let isValidPassword = false;
-    if (PasswordUtils.isArgon2Hash(user.passwordHash)) {
-      isValidPassword = await PasswordUtils.verifyPassword(
-        password,
-        user.passwordHash
-      );
-    } else if (PasswordUtils.isBcryptHash(user.passwordHash)) {
-      isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    try {
+      if (PasswordUtils.isArgon2Hash(user.passwordHash)) {
+        isValidPassword = await PasswordUtils.verifyPassword(
+          password,
+          user.passwordHash
+        );
+      } else if (PasswordUtils.isBcryptHash(user.passwordHash)) {
+        isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
-      // Optionally upgrade to Argon2id on successful login
-      if (isValidPassword) {
-        try {
-          const newHash = await PasswordUtils.hashPassword(password);
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { passwordHash: newHash },
-          });
-        } catch (error) {
-          console.error("Failed to upgrade password hash:", error);
-          // Don't fail login if hash upgrade fails
+        // Optionally upgrade to Argon2id on successful login
+        if (isValidPassword) {
+          try {
+            const newHash = await PasswordUtils.hashPassword(password);
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { passwordHash: newHash },
+            });
+          } catch (error) {
+            logger.error('Failed to upgrade password hash during login', { error: error instanceof Error ? error.message : 'Unknown error', userId: user.id });
+            // Don't fail login if hash upgrade fails
+          }
         }
+      } else {
+        throw AppError.newError500(ErrorCode.LOGIN_PASSWORD_HASH_ERROR, "Invalid password hash format detected");
       }
-    } else {
-      throw AppError.internalError("Invalid password hash format");
+    } catch (error) {
+      // Handle password verification errors
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.newError500(ErrorCode.LOGIN_PASSWORD_HASH_ERROR, "Error occurred during password verification");
     }
 
     if (!isValidPassword) {
-      throw AppError.unauthorized("Invalid credentials");
+      throw AppError.newError401(ErrorCode.LOGIN_INVALID_PASSWORD, "Invalid password provided");
     }
 
-    // Check user status
-    this.validateUserStatus(user.status);
+    // Check user status with specific error codes
+    try {
+      this.validateUserStatus(user.status);
+    } catch (error) {
+      if (error instanceof AppError) {
+        // Add specific error codes based on user status
+        if (user.status === USER_STATUS_CONSTANTS.PENDING_VERIFICATION) {
+          throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_PENDING_VERIFICATION, "Account pending email verification. Please verify your email first.");
+        } else if (user.status === USER_STATUS_CONSTANTS.BLOCKED) {
+          throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_SUSPENDED, "Account has been blocked. Please contact support.");
+        } else if (!user.isActive) {
+          throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_INACTIVE, "Account is inactive. Please contact support.");
+        }
+      }
+      throw error;
+    }
 
     // Generate tokens
     const accessToken = this.generateAccessToken(user);
@@ -300,6 +353,95 @@ export class AuthService {
     if (!isValidStatusForLogin(status)) {
       throw AppError.forbidden(getUserStatusMessage(status));
     }
+  }
+
+  /**
+   * Centralized user validation for all authentication operations
+   */
+  static async validateUserForAuth(userId: string, operationType: 'login' | 'general' = 'general'): Promise<any> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { 
+        role: true, 
+        subscription: true 
+      },
+    });
+
+    if (!user) {
+      throw AppError.newError404(ErrorCode.USER_NOT_FOUND, "User account not found");
+    }
+
+    // Check if user is deleted
+    if (user.status === USER_STATUS_CONSTANTS.DELETED) {
+      throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_SUSPENDED, "Account has been deleted");
+    }
+
+    // Check if user is blocked
+    if (user.status === USER_STATUS_CONSTANTS.BLOCKED) {
+      throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_SUSPENDED, "Account has been blocked. Contact support");
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_INACTIVE, "Account is inactive. Contact support");
+    }
+
+    // For login operations, require ACTIVE status
+    if (operationType === 'login' && user.status !== USER_STATUS_CONSTANTS.ACTIVE) {
+      if (user.status === USER_STATUS_CONSTANTS.PENDING_VERIFICATION) {
+        throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_PENDING_VERIFICATION, "Account requires email verification");
+      } else {
+        throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_INACTIVE, `Account status: ${user.status}`);
+      }
+    }
+
+    return user;
+  }
+
+  /**
+   * Validate user by email with centralized logic
+   */
+  static async validateUserByEmail(email: string, operationType: 'login' | 'general' = 'general'): Promise<any> {
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { 
+        role: true, 
+        subscription: true 
+      },
+    });
+
+    if (!user) {
+      if (operationType === 'login') {
+        throw AppError.newError401(ErrorCode.LOGIN_EMAIL_NOT_FOUND, "Invalid credentials");
+      } else {
+        throw AppError.newError404(ErrorCode.USER_NOT_FOUND, "User not found with provided email");
+      }
+    }
+
+    return this.validateUserForAuth(user.id, operationType);
+  }
+
+  /**
+   * Validate user by wallet address with centralized logic
+   */
+  static async validateUserByWallet(walletAddress: string, operationType: 'login' | 'general' = 'general'): Promise<any> {
+    const user = await prisma.user.findFirst({
+      where: { walletAddress: walletAddress.toLowerCase() },
+      include: { 
+        role: true, 
+        subscription: true 
+      },
+    });
+
+    if (!user) {
+      if (operationType === 'login') {
+        throw AppError.newError401(ErrorCode.LOGIN_EMAIL_NOT_FOUND, "Invalid credentials");
+      } else {
+        throw AppError.newError404(ErrorCode.USER_NOT_FOUND, "User not found with provided wallet address");
+      }
+    }
+
+    return this.validateUserForAuth(user.id, operationType);
   }
 
   private static generateAccessToken(user: any): string {
@@ -500,7 +642,7 @@ export class AuthService {
           expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
         });
       } catch (error) {
-        console.error("Failed to create default API key for Web3 user:", error);
+        logger.error('Failed to create default API key for Web3 user', { error: error instanceof Error ? error.message : 'Unknown error', userId: user.id });
         // Don't fail the login if API key creation fails
       }
 
@@ -531,7 +673,7 @@ export class AuthService {
         } : null
       };
     } catch (error) {
-      console.error("Error in web3Login:", error);
+      logger.error('Error in web3Login', { error: error instanceof Error ? error.message : 'Unknown error', walletAddress });
       if (error instanceof AppError) {
         throw error;
       }
@@ -665,7 +807,7 @@ export class AuthService {
           });
         }
       } catch (error) {
-        console.error("Failed to create default API key:", error);
+        logger.error('Failed to create default API key during email linking', { error: error instanceof Error ? error.message : 'Unknown error', userId: updatedUser.id });
         // Don't fail the linking if API key creation fails
       }
 
@@ -687,7 +829,7 @@ export class AuthService {
         } : null
       };
     } catch (error) {
-      console.error("Error linking email to Web3 user:", error);
+      logger.error('Error linking email to Web3 user', { error: error instanceof Error ? error.message : 'Unknown error', email, walletAddress });
       if (error instanceof AppError) {
         throw error;
       }
@@ -804,7 +946,7 @@ export class AuthService {
       
       return user;
     } catch (error) {
-      console.error('Error finding user by email:', error);
+      logger.error('Error finding user by email', { error: error instanceof Error ? error.message : 'Unknown error', email });
       return null;
     }
   }
@@ -827,7 +969,7 @@ export class AuthService {
       
       return user;
     } catch (error) {
-      console.error('Error finding user by wallet:', error);
+      logger.error('Error finding user by wallet', { error: error instanceof Error ? error.message : 'Unknown error', walletAddress });
       return null;
     }
   }
@@ -861,7 +1003,7 @@ export class AuthService {
         refreshToken
       };
     } catch (error) {
-      console.error('Error linking wallet to email user:', error);
+      logger.error('Error linking wallet to email user', { error: error instanceof Error ? error.message : 'Unknown error', email, walletAddress });
       throw AppError.internalError('Failed to link wallet to email account');
     }
   }
@@ -908,9 +1050,189 @@ export class AuthService {
         refreshToken
       };
     } catch (error) {
-      console.error('Error linking email to wallet user:', error);
+      logger.error('Error linking email to wallet user', { error: error instanceof Error ? error.message : 'Unknown error', email, walletAddress });
       throw AppError.internalError('Failed to link email to Web3 account');
     }
+  }
+
+  /**
+   * Request password reset - Generate OTP and send email
+   */
+  static async requestPasswordReset(email: string): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      throw AppError.newError404(ErrorCode.PASSWORD_RESET_EMAIL_NOT_FOUND, "Email address not found in system");
+    }
+
+    // Check if user is in valid state for password reset
+    if (user.status === USER_STATUS_CONSTANTS.BLOCKED || user.status === USER_STATUS_CONSTANTS.DELETED) {
+      throw AppError.newError403(ErrorCode.LOGIN_ACCOUNT_SUSPENDED, "Account is not eligible for password reset");
+    }
+
+    try {
+      // Generate OTP for password reset
+      await OtpService.generateOtp(email.toLowerCase(), OTPType.PASSWORD_RESET);
+      
+      logger.info('Password reset OTP sent', { email: email.toLowerCase(), userId: user.id });
+    } catch (error) {
+      logger.error('Failed to generate password reset OTP', { 
+        error: error instanceof Error ? error.message : 'Unknown error', 
+        email: email.toLowerCase(),
+        userId: user.id 
+      });
+      throw AppError.newError500(ErrorCode.PASSWORD_RESET_OTP_GENERATION_FAILED, "Failed to generate OTP, please try again");
+    }
+  }
+
+  /**
+   * Reset password with OTP verification
+   */
+  static async resetPassword(email: string, otp: string, newPassword: string): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      throw AppError.newError404(ErrorCode.PASSWORD_RESET_EMAIL_NOT_FOUND, "Email address not found in system");
+    }
+
+    // Validate new password strength
+    const passwordValidation = await this.validatePasswordStrength(newPassword);
+    if (!passwordValidation.isValid) {
+      throw AppError.newError400(ErrorCode.PASSWORD_RESET_NEW_PASSWORD_WEAK, passwordValidation.errors.join(", "));
+    }
+
+    // Verify OTP
+    try {
+      const isValidOtp = await OtpService.verifyOtp(
+        email.toLowerCase(),
+        otp,
+        OTPType.PASSWORD_RESET
+      );
+
+      if (!isValidOtp) {
+        throw AppError.newError400(ErrorCode.PASSWORD_RESET_INVALID_OTP, "Invalid or expired OTP code");
+      }
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      logger.error('Error verifying password reset OTP', { 
+        error: error instanceof Error ? error.message : 'Unknown error', 
+        email: email.toLowerCase(),
+        userId: user.id 
+      });
+      throw AppError.newError400(ErrorCode.PASSWORD_RESET_INVALID_OTP, "Invalid or expired OTP code");
+    }
+
+    // Hash new password
+    const passwordHash = await PasswordUtils.hashPassword(newPassword);
+
+    // Update password and invalidate all refresh tokens for security
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Update password
+        await tx.user.update({
+          where: { id: user.id },
+          data: { 
+            passwordHash,
+            refreshToken: null, // Invalidate current refresh token for security
+            updatedAt: new Date()
+          },
+        });
+      }, {
+        timeout: 10000, // 10 second timeout
+        maxWait: 5000, // Wait up to 5 seconds to acquire connection
+      });
+    } catch (error) {
+      logger.error('Transaction failed during password reset', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        email: email.toLowerCase(),
+        userId: user.id
+      });
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      // Handle specific Prisma errors
+      if ((error as any)?.code === 'P2025') { // Record not found
+        throw AppError.newError404(ErrorCode.USER_NOT_FOUND, 'User account no longer exists');
+      } else {
+        throw AppError.internalError('Failed to update password');
+      }
+    }
+
+    logger.info('Password reset successfully', { email: email.toLowerCase(), userId: user.id });
+
+    // Send confirmation email (optional - can be implemented later)
+    // For now, we log the successful password reset
+    // TODO: Implement sendPasswordResetConfirmation in EmailService
+    // try {
+    //   await EmailService.sendPasswordResetConfirmation(email.toLowerCase(), user.fullName || 'User');
+    // } catch (error) {
+    //   logger.error('Failed to send password reset confirmation email', { 
+    //     error: error instanceof Error ? error.message : 'Unknown error', 
+    //     email: email.toLowerCase() 
+    //   });
+    //   // Don't fail the operation if email fails
+    // }
+  }
+
+  /**
+   * Validate password strength with detailed feedback
+   */
+  private static async validatePasswordStrength(password: string): Promise<{ isValid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    // Length check
+    if (password.length < SECURITY_CONFIG.PASSWORD.MIN_LENGTH) {
+      errors.push(`Password must be at least ${SECURITY_CONFIG.PASSWORD.MIN_LENGTH} characters long`);
+    }
+
+    // Complexity checks
+    if (SECURITY_CONFIG.PASSWORD.REQUIRE_UPPERCASE && !/[A-Z]/.test(password)) {
+      errors.push("Password must contain at least one uppercase letter");
+    }
+
+    if (SECURITY_CONFIG.PASSWORD.REQUIRE_LOWERCASE && !/[a-z]/.test(password)) {
+      errors.push("Password must contain at least one lowercase letter");
+    }
+
+    if (SECURITY_CONFIG.PASSWORD.REQUIRE_NUMBERS && !/\d/.test(password)) {
+      errors.push("Password must contain at least one number");
+    }
+
+    if (SECURITY_CONFIG.PASSWORD.REQUIRE_SPECIAL_CHARS && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      errors.push("Password must contain at least one special character");
+    }
+
+    // Additional checks
+    if (password.length > 128) {
+      errors.push("Password cannot exceed 128 characters");
+    }
+
+    // Check for common weak patterns
+    const commonPatterns = [
+      /^(.)\1+$/, // All same character
+      /^(123|abc|qwerty)/i, // Common sequences
+      /^(password|admin|user)/i, // Common words
+    ];
+
+    for (const pattern of commonPatterns) {
+      if (pattern.test(password)) {
+        errors.push("Password contains common weak patterns");
+        break;
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   }
 
 }
