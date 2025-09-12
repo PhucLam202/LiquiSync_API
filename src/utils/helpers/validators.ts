@@ -1,4 +1,7 @@
 // File: src/utils/helpers/validators.ts
+import { SECURITY_CONFIG } from '../../middleware/security/securityConfig.js';
+import type { PasswordValidationResult } from '../../types/authTypes.js';
+
 export class ValidationUtils {
   /**
    * Email validation with RFC 5322 compliance
@@ -88,17 +91,17 @@ export class ValidationUtils {
    * API key format validation
    */
   static isValidApiKeyFormat(apiKey: string): boolean {
-    // Check for expected prefixes
-    const validPrefixes = ['ak_live_', 'ak_test_'];
-    const hasValidPrefix = validPrefixes.some(prefix => apiKey.startsWith(prefix));
+    // Check for expected prefix from security config
+    const expectedPrefix = SECURITY_CONFIG.API_KEY.PREFIX;
     
-    if (!hasValidPrefix) {
+    if (!apiKey.startsWith(expectedPrefix)) {
       return false;
     }
 
-    // Check total length (prefix + 64 chars)
-    const expectedLength = apiKey.startsWith('ak_live_') ? 72 : 72; // 8 (prefix) + 64 (key)
-    return apiKey.length === expectedLength && /^[a-zA-Z0-9_]+$/.test(apiKey);
+    // Check total length (prefix + hex chars)
+    // API key = prefix + randomBytes(32).toString('hex') = prefix + 64 hex chars
+    const expectedLength = expectedPrefix.length + (SECURITY_CONFIG.API_KEY.LENGTH * 2);
+    return apiKey.length === expectedLength && /^[a-zA-Z0-9-_]+$/.test(apiKey);
   }
 
   /**
@@ -240,10 +243,6 @@ export class ValidationUtils {
   }
 }
 
-interface PasswordValidationResult {
-  isValid: boolean;
-  errors: string[];
-}
 
 // Validation middleware helpers
 export class ValidationMiddleware {

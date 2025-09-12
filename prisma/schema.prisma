@@ -145,6 +145,7 @@ enum AuthType {
   WEB3
   GOOGLE
   GITHUB
+  HYBRID
 }
 
 enum PlanType {

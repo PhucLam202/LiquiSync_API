@@ -60,13 +60,15 @@ app.use(cors({
         /\.up\.railway\.app$/,
         /^https:\/\/.*\.railway\.app$/,
         'https://api.liquidsync.dev',
-        'https://app.liquidsync.dev'
+        'https://app.liquidsync.dev',
+        'https://liquid-sync-api-dashboard.vercel.app'
       ]
     : [
         'http://localhost:3000', 
         'http://127.0.0.1:3000',
         'http://localhost:8080',
-        'http://localhost:5173'
+        'http://localhost:5173',
+        'https://liquid-sync-api-dashboard.vercel.app'
       ],
   credentials: true, // Enable credentials for cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
