@@ -14,11 +14,12 @@ COPY tsconfig.json ./
 # Install all dependencies (needed for build)
 RUN npm install
 
-# Copy source code  
+# Copy source code and Prisma schema
 COPY src/ ./src/
+COPY prisma/ ./prisma/
 
-# Build TypeScript
-RUN npm run build
+# Generate Prisma client and build TypeScript
+RUN npx prisma generate && npm run build
 
 # Clean dev dependencies after build
 RUN npm install --only=production && npm cache clean --force

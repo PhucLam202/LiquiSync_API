@@ -219,11 +219,8 @@ class BifrostService {
       // Log error details for debugging (sanitized by logger)
       logger.error('Failed to fetch Bifrost data', { error: (error as Error).message });
       
-      // Return mock data for development/testing when external API is unavailable
-      logger.warn('Using mock data due to external API failure');
-      const mockData = this.getMockSiteData();
-      this.setCache(cacheKey, mockData);
-      return mockData;
+      // Convert to structured error with proper HTTP status
+      throw AppError.newRootError502(ErrorCode.AI_SERVICE_UNAVAILABLE, 'External API unavailable', error as Error);
     }
   }
 

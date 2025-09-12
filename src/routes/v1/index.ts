@@ -31,6 +31,9 @@ import express, { Router } from "express";
 import stablecoinRoutes from "./stablecoin.js";
 import bifrostRoutes from "./bifrost.js";
 import marketIntelligenceRoutes from "./marketIntelligence.js";
+import authRoutes from "./auth.js";
+import userRoutes from "./users.js";
+import apiKeyRoutes from "./apikeys.js";
 
 /// ## Main V1 Router Configuration
 /// 
@@ -66,5 +69,13 @@ router.use("/stablecoins", stablecoinRoutes);
 /// **Endpoints**: /overview, /dominance, /trending, /movers, /health
 router.use("/defi/tvl", marketIntelligenceRoutes);
 
+/// ROUTE DELEGATION: Authentication endpoints
+router.use("/auth", authRoutes);
+
+/// ROUTE DELEGATION: User endpoints
+router.use("/users", userRoutes);
+
+/// ROUTE DELEGATION: API Key endpoints
+router.use("/apikeys", apiKeyRoutes);
 
 export default router;

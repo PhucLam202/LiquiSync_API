@@ -217,6 +217,9 @@ export class ValidationHelper {
     // Chain name validation with aliases
     const chain = this.normalizeChainName(query.chain, errors);
     
+    // Validate detail level
+    const detail = this.validateDetailLevel(query.detail, errors);
+    
     // Standard parameter validation
     const limit = this.validateLimit(query.limit, errors, 50, 1, 100);
     const sortBy = this.validateSortBy(
@@ -238,6 +241,7 @@ export class ValidationHelper {
 
     const validatedQuery: ChainEcosystemOptions = {
       chain,
+      detail,
       limit,
       sortBy,
       categories
