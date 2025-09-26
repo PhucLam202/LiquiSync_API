@@ -62,7 +62,7 @@ We aggregate data from **15+ top-tier DeFi protocols** including:
         console.log(`  Production Mode: Using Railway server only`);
         return [
           {
-            url: `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`,
+            url: 'https://liquidsyncapi-staging.up.railway.app',
             description: 'Production server'
           }
         ];
@@ -77,9 +77,9 @@ We aggregate data from **15+ top-tier DeFi protocols** including:
         ];
         
         // Add Railway server as secondary option for development if available
-        if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        if (true) {
           servers.push({
-            url: `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`,
+            url: 'https://liquidsyncapi-staging.up.railway.app',
             description: 'Railway staging server (secondary)'
           });
         }

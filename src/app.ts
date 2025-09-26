@@ -61,7 +61,8 @@ app.use(cors({
         /^https:\/\/.*\.railway\.app$/,
         'https://api.liquidsync.dev',
         'https://app.liquidsync.dev',
-        'https://liquid-sync-api-dashboard.vercel.app'
+        'https://liquid-sync-api-dashboard.vercel.app',
+        'http://localhost:3000'
       ]
     : [
         'http://localhost:3000', 
