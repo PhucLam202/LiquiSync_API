@@ -1,17 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm run dev:*)",
-      "Bash(curl:*)",
-      "Bash(pkill:*)",
-      "Bash(pnpm install:*)",
-      "Bash(pnpm run build:*)",
-      "Bash(ls:*)",
-      "Bash(pnpm start)",
-      "Bash(rm:*)",
-      "Bash(pnpm run:*)",
-      "mcp__sequentialthinking__sequentialthinking"
-    ],w
+      "WebFetch(domain:github.com)",
+      "mcp__sequentialthinking__sequentialthinking",
+      "Bash(find:*)",
+      "Bash(ls:*)"
+    ],
     "deny": []
   }
 }

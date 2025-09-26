@@ -28,6 +28,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm run memory:update` - Update project memory files
 - Visit `/docs` endpoint for interactive Scalar documentation (replaces Swagger UI)
 
+### Code Quality & Testing
+- **No formal test suite configured** - testing is done via `/docs` endpoint and manual validation
+- **No linting commands configured** - relies on IDE integration with ESLint/Prettier
+- **Code formatting** through Prettier (configured as devDependency)
+- **Testing approach**: Use interactive `/docs` endpoint for API validation
+
 ### Docker Development
 ```bash
 docker build -t defi-data-api .
@@ -67,6 +73,13 @@ import type { BifrostYield } from '@/types/bifrost'
 **Security-First Design**: Multi-layer security including rate limiting, input validation, error sanitization, and comprehensive authentication middleware.
 
 **Database Integration**: MongoDB with Prisma ORM providing type-safe database operations, user management, subscription tracking, and audit logging.
+
+### Core Data Models (Prisma Schema)
+- **User**: Email/wallet authentication, roles, subscriptions, API key management
+- **Subscription**: Plan types (FREE/PREMIUM/ENTERPRISE), usage limits, billing cycles
+- **ApiKey**: Scoped API keys with permissions, rate limits, usage tracking
+- **Role/Permission**: RBAC with granular feature permissions
+- **UsageLog**: API usage analytics and billing tracking
 
 ## Domain-Specific Context
 
@@ -128,7 +141,10 @@ The project implements enterprise-grade error handling with:
 - `REDIS_URL` - Redis connection string for session management
 - `BREVO_API_KEY` - Brevo email service API key
 - `CORS_ORIGIN` - Allowed CORS origins (environment-specific)
-- `BIFROST_API_URL` - Primary Bifrost protocol API endpoint (if needed)
+- `BIFROST_API_URL` - Primary Bifrost protocol API endpoint (default: https://dapi.bifrost.io/api)
+- `BETTER_AUTH_SECRET` - BetterAuth configuration secret
+- `BETTER_AUTH_URL` - BetterAuth base URL for authentication flows
+- `COOKIE_DOMAIN` - Cookie domain for session management
 
 ### TypeScript Configuration
 - **Strict mode enabled** with comprehensive type checking
@@ -174,3 +190,27 @@ The project is optimized for Railway deployment with:
 - **TypeScript interfaces**: Comprehensive type definitions for all data structures
 - **Scalar integration**: Modern interactive documentation over traditional Swagger UI
 - **Example responses**: Include realistic sample data in API documentation
+
+## API Structure & Endpoints
+
+### Core API Routes (v1)
+- `/api/v1/auth/*` - Authentication (login, register, refresh, verify)
+- `/api/v1/users/*` - User management and profile operations
+- `/api/v1/apikeys/*` - API key management and permissions
+- `/api/v1/bifrost/*` - Core DeFi data (yields, exchange rates, conversions)
+- `/api/v1/stablecoin/*` - Stablecoin-specific data and analytics
+- `/api/v1/market-intelligence/*` - Market data and TVL analytics
+
+### Important Implementation Notes
+- **Authentication**: All protected endpoints require JWT token or API key in headers
+- **Rate Limiting**: Implemented at middleware level with Redis backend
+- **CORS**: Configured for Railway domains and development environments
+- **Error Responses**: Centralized error handler with sanitized production responses
+- **Validation**: Multi-layer input validation using custom middleware and helpers
+
+### Common Debugging Steps
+1. Check `/health` endpoint for server status
+2. Use `/docs` for interactive API testing
+3. Verify environment variables are properly set
+4. Check CORS configuration for cross-origin requests
+5. Validate API key permissions for protected endpoints

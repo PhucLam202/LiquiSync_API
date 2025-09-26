@@ -52,28 +52,63 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration - Railway deployment compatible 
+// CORS configuration - Environment-aware with explicit origin support
+const getCorsOrigins = () => {
+  // Get explicit CORS origins from environment
+  const explicitOrigins = process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+    : [];
+
+  // Base production origins
+  const productionOrigins = [
+    /\.railway\.app$/,
+    /\.up\.railway\.app$/,
+    /^https:\/\/.*\.railway\.app$/,
+    'https://api.liquidsync.dev',
+    'https://app.liquidsync.dev',
+    'https://liquid-sync-api-dashboard.vercel.app'
+  ];
+
+  // Development origins
+  const developmentOrigins = [
+    'http://localhost:3000', 
+    'http://127.0.0.1:3000',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'https://liquid-sync-api-dashboard.vercel.app'
+  ];
+
+  if (process.env.NODE_ENV === 'production') {
+    // For production: include explicit origins, production origins, and current domain
+    const currentDomain = process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : null;
+    
+    return [
+      ...explicitOrigins,
+      ...productionOrigins,
+      ...(currentDomain ? [currentDomain] : []),
+      'http://localhost:3000' // Keep for local testing against production
+    ];
+  } else {
+    // For development: include explicit origins and development origins
+    return [
+      ...explicitOrigins,
+      ...developmentOrigins
+    ];
+  }
+};
+
+// Initialize CORS with environment-aware origins
+const corsOrigins = getCorsOrigins();
+console.log(`[CORS] Environment: ${process.env.NODE_ENV}`);
+console.log(`[CORS] Allowed origins:`, corsOrigins);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [
-        /\.railway\.app$/,
-        /\.up\.railway\.app$/,
-        /^https:\/\/.*\.railway\.app$/,
-        'https://api.liquidsync.dev',
-        'https://app.liquidsync.dev',
-        'https://liquid-sync-api-dashboard.vercel.app',
-        'http://localhost:3000'
-      ]
-    : [
-        'http://localhost:3000', 
-        'http://127.0.0.1:3000',
-        'http://localhost:8080',
-        'http://localhost:5173',
-        'https://liquid-sync-api-dashboard.vercel.app'
-      ],
+  origin: corsOrigins,
   credentials: true, // Enable credentials for cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cookie'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cookie', 'x-api-key'],
   optionsSuccessStatus: 200
 }));
 

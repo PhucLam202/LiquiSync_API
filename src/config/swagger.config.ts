@@ -55,20 +55,20 @@ We aggregate data from **15+ top-tier DeFi protocols** including:
     },
     servers: (() => {
       const isProduction = process.env.NODE_ENV === 'production';
-      const hasRailwayEnv = Boolean(process.env.RAILWAY_ENVIRONMENT);
+      const isRailwayEnvironment = Boolean(process.env.RAILWAY_ENVIRONMENT);
       const port = process.env.PORT || 3000;
-      if (isProduction) {
-        // Production: Only Railway server
-        console.log(`  Production Mode: Using Railway server only`);
-        return [
-          {
-            url: 'https://liquidsyncapi-staging.up.railway.app',
-            description: 'Production server'
-          }
-        ];
-      } else {
-        // Development: Provide both localhost (primary) and Railway (secondary) options
-        console.log(`  Development Mode: Providing localhost (primary) and Railway (fallback) servers`);
+      const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+      
+      // Check if we're running locally by checking for typical local indicators
+      const isLocalhost = process.env.LOCAL_DEVELOPMENT === 'true' ||
+                         (!isRailwayEnvironment && 
+                          (process.env.HOST === 'localhost' || 
+                           process.env.HOST === '127.0.0.1' ||
+                           !process.env.RAILWAY_ENVIRONMENT));
+      
+      if (isLocalhost) {
+        // Running locally (regardless of NODE_ENV)
+        console.log(`  Local Development Mode: Using localhost as primary server`);
         const servers = [
           {
             url: `http://localhost:${port}`,
@@ -76,16 +76,29 @@ We aggregate data from **15+ top-tier DeFi protocols** including:
           }
         ];
         
-        // Add Railway server as secondary option for development if available
-        if (true) {
+        // Add Railway server as secondary option if domain is available
+        if (railwayDomain) {
           servers.push({
-            url: 'https://liquidsyncapi-staging.up.railway.app',
-            description: 'Railway staging server (secondary)'
+            url: `https://${railwayDomain}`,
+            description: 'Railway server (secondary)'
           });
         }
         
         console.log(`  Available servers:`, servers.map(s => `${s.url} (${s.description})`).join(', '));
         return servers;
+      } else {
+        // Running on Railway
+        const railwayUrl = railwayDomain 
+          ? `https://${railwayDomain}`
+          : 'https://liquidsyncapi-staging.up.railway.app';
+        
+        console.log(`  Railway Mode: Using ${railwayUrl}`);
+        return [
+          {
+            url: railwayUrl,
+            description: `Railway ${isProduction ? 'production' : 'staging'} server`
+          }
+        ];
       }
     })(),
     tags: [
